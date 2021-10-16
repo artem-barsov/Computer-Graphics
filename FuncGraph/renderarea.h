@@ -14,13 +14,19 @@ public:
 
     ~RenderArea();
 
-    void resize(int w, int h);
+//    void resize(int w, int h);
 
     void setScale(const QTransform &newScale);
 
     void setShift(const QTransform &newShift);
 
     void setRotate(const QTransform &newRotate);
+
+    void setCenter(QPoint newCenter);
+
+    const QTransform &getScale() const;
+
+    const QTransform &getShift() const;
 
 public slots:
     void update();
@@ -31,6 +37,9 @@ signals:
     void shiftChanged(QTransform);
 
     void rotateChanged(QTransform);
+
+    void debugRA(QString);
+    void debugSC(QString);
 
 protected:
     virtual void paintEvent(QPaintEvent *event) override;
@@ -51,8 +60,8 @@ private:
     QTransform shift;
     QTransform rotate;
     QTransform world_trans;
-    Q_PROPERTY(QTransform scale WRITE setScale NOTIFY scaleChanged)
-    Q_PROPERTY(QTransform shift WRITE setShift NOTIFY shiftChanged)
+    Q_PROPERTY(QTransform scale READ getScale WRITE setScale NOTIFY scaleChanged)
+    Q_PROPERTY(QTransform shift READ getShift WRITE setShift NOTIFY shiftChanged)
     Q_PROPERTY(QTransform rotate WRITE setRotate NOTIFY rotateChanged)
 };
 

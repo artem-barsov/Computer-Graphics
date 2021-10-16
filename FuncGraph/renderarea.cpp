@@ -2,14 +2,21 @@
 
 RenderArea::RenderArea(QWidget *parent, Graph *graph,
                        QPointF scl, QPoint sh, double angle)
-    : QWidget(parent), graph(graph)
+    : QWidget(parent)
+    , graph(graph)
     , scale(QTransform(scl.x(), 0, 0, scl.y(), 0, 0))
     , shift(QTransform(1, 0, 0, 1, sh.x(), sh.y()))
     , rotate(QTransform(cos(angle), -sin(angle),
                         sin(angle), cos(angle), 0, 0))
     , world_trans(scale * rotate * shift)
 {
-    setFixedSize(parent->size());
+//    setFixedSize(parent->size());
+//    setBaseSize(parent->size());
+//    resize(parent->size().width(), parent->size().height());
+//    QWidget::setBaseSize(parent->size());
+//    QWidget::setFixedSize(parent->size());
+    QWidget::resize(parent->size());
+//    parentWidget()->resize(parent->size());
     center = { width() / 2, height() / 2 };
 
     connect(graph, &Graph::nChanged,
@@ -93,6 +100,21 @@ void RenderArea::wheelEvent(QWheelEvent *event) {
                             scale.m22() + event->angleDelta().y()*0.1, 0, 0));
 }
 
+const QTransform &RenderArea::getScale() const
+{
+    return scale;
+}
+
+const QTransform &RenderArea::getShift() const
+{
+    return shift;
+}
+
+void RenderArea::setCenter(QPoint newCenter)
+{
+    center = newCenter;
+}
+
 void RenderArea::setRotate(const QTransform &newRotate)
 {
     if (rotate == newRotate) return;
@@ -116,15 +138,25 @@ void RenderArea::setScale(const QTransform &newScale)
     if (newScale.m22() < 0) return;
     scale = newScale;
     update();
+    static int cnt = 0;
+    cnt++;
+    emit debugSC("RA scale: " + QString::number(cnt));
     emit scaleChanged(scale);
 }
 
-void RenderArea::resize(int w, int h)
-{
-    parentWidget()->resize(w, h);
-    double ratio = (double) w / this->size().width();
-    setFixedSize(w, h);
-    center = { width() / 2, height() / 2 };
-    setScale(scale * ratio);
-    setShift(shift * ratio);
-}
+//void RenderArea::resize(int w, int h)
+//{
+//    static int cnt = 0;
+//    cnt++;
+//    emit debugRA("RA resize: " + QString::number(cnt));
+////    parentWidget()->resize(w, h);
+//////    parentWidget()->setBaseSize(w, h);
+
+//////    QWidget::resize(w, h); // 100 - 273/222
+////    double ratio = (double) w / this->size().width();
+////    setFixedSize(w, h);
+
+////    center = { width() / 2, height() / 2 };
+////    setScale(scale * ratio);
+////    setShift(shift * ratio);
+//}
