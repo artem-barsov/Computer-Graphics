@@ -14,7 +14,7 @@ public:
 
     ~RenderArea();
 
-//    void resize(int w, int h);
+    void resize(int w, int h);
 
     void setScale(const QTransform &newScale);
 
@@ -22,11 +22,7 @@ public:
 
     void setRotate(const QTransform &newRotate);
 
-    void setCenter(QPoint newCenter);
-
-    const QTransform &getScale() const;
-
-    const QTransform &getShift() const;
+    const QPoint getCenter() const;
 
 public slots:
     void update();
@@ -38,30 +34,26 @@ signals:
 
     void rotateChanged(QTransform);
 
-    void debugRA(QString);
-    void debugSC(QString);
-
 protected:
-    virtual void paintEvent(QPaintEvent *event) override;
-    virtual void mousePressEvent(QMouseEvent *event) override;
-    virtual void mouseMoveEvent(QMouseEvent *event) override;
+    virtual void paintEvent       (QPaintEvent *event) override;
+    virtual void mousePressEvent  (QMouseEvent *event) override;
+    virtual void mouseMoveEvent   (QMouseEvent *event) override;
     virtual void mouseReleaseEvent(QMouseEvent *event) override;
-    virtual void wheelEvent(QWheelEvent *event) override;
+    virtual void wheelEvent       (QWheelEvent *event) override;
 
 private:
-    QPoint startPos;
+    QPoint     startPos;
     QTransform startShift;
     QTransform startRotate;
 
 private:
-    QPoint center;
-    Graph *graph;
+    Graph     *graph;
     QTransform scale;
     QTransform shift;
     QTransform rotate;
     QTransform world_trans;
-    Q_PROPERTY(QTransform scale READ getScale WRITE setScale NOTIFY scaleChanged)
-    Q_PROPERTY(QTransform shift READ getShift WRITE setShift NOTIFY shiftChanged)
+    Q_PROPERTY(QTransform scale WRITE setScale NOTIFY scaleChanged)
+    Q_PROPERTY(QTransform shift WRITE setShift NOTIFY shiftChanged)
     Q_PROPERTY(QTransform rotate WRITE setRotate NOTIFY rotateChanged)
 };
 

@@ -80,22 +80,13 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ra, &RenderArea::rotateChanged, ui->rotate_doubleSpinBox,
             [=](QTransform rot){ui->rotate_doubleSpinBox->setValue(
                     -atan2(rot.m12(), rot.m11()) * 180.0 / M_PI);});
-
-    connect(ra,                 &RenderArea::debugRA,
-            ui->debug_ra_label, &QLabel::setText);
-    connect(ra,                 &RenderArea::debugSC,
-            ui->debug_sc_label, &QLabel::setText);
 }
 
-void MainWindow::resizeEvent(QResizeEvent* event)
+void MainWindow::resizeEvent(QResizeEvent*)
 {
-    static int cnt = 0;
-    cnt++;
-    ui->debug_mw_label->setText("MA resize: " + QString::number(cnt));
-
     QSize newSize = size() - margin - QSize(ui->draw_widget->pos().x(),
                                             ui->draw_widget->pos().y());
-    double newRatio = (double) newSize.width() / newSize.height();
+    double newRatio = (double)newSize.width() / newSize.height();
     int newW, newH;
     if (newRatio > ra_ratio) {
         newW = newSize.height() * ra_ratio;
@@ -104,25 +95,8 @@ void MainWindow::resizeEvent(QResizeEvent* event)
         newW = newSize.width();
         newH = newSize.width() / ra_ratio;
     }
-    double ratio = (double) newW / ui->draw_widget->width();
     ui->draw_widget->resize(newW, newH);
     ra->resize(newW, newH);
-    ra->setCenter({ newW / 2, newH / 2 });
-//    auto qwe = ra->getScale() * ratio;
-//    auto asd = ra->getShift() * ratio;
-//    ra->setScale(qwe);
-//    ra->setShift(asd);
-//    ra->setScale(ra->getScale() * ratio);
-    ra->setShift(ra->getShift() * ratio);
-
-//    ui->scaleX_doubleSpinBox->setValue(
-//                ui->scaleX_doubleSpinBox->value() * ratio);
-//    ui->scaleY_doubleSpinBox->setValue(
-//                ui->scaleY_doubleSpinBox->value() * ratio);
-//    ui->shiftX_spinBox->setValue(
-//                round(ui->shiftX_spinBox->value() * ratio));
-//    ui->shiftY_spinBox->setValue(
-//                round(ui->shiftY_spinBox->value() * ratio));
 }
 
 MainWindow::~MainWindow()

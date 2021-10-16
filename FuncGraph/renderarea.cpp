@@ -10,15 +10,7 @@ RenderArea::RenderArea(QWidget *parent, Graph *graph,
                         sin(angle), cos(angle), 0, 0))
     , world_trans(scale * rotate * shift)
 {
-//    setFixedSize(parent->size());
-//    setBaseSize(parent->size());
-//    resize(parent->size().width(), parent->size().height());
-//    QWidget::setBaseSize(parent->size());
-//    QWidget::setFixedSize(parent->size());
     QWidget::resize(parent->size());
-//    parentWidget()->resize(parent->size());
-    center = { width() / 2, height() / 2 };
-
     connect(graph, &Graph::nChanged,
             this,  &RenderArea::update);
     connect(graph, &Graph::aChanged,
@@ -27,13 +19,20 @@ RenderArea::RenderArea(QWidget *parent, Graph *graph,
             this,  &RenderArea::update);
 }
 
-RenderArea::~RenderArea() {
+RenderArea::~RenderArea()
+{
     delete graph;
 }
 
-void RenderArea::update() {
+void RenderArea::update()
+{
     world_trans = scale * rotate * shift;
     QWidget::update();
+}
+
+const QPoint RenderArea::getCenter() const
+{
+    return { width() / 2, height() / 2 };
 }
 
 void RenderArea::paintEvent(QPaintEvent*)
@@ -44,7 +43,7 @@ void RenderArea::paintEvent(QPaintEvent*)
     painter.drawRect(0, 0, width()-1, height()-1);
 
     // to screen space
-    painter.translate(center);
+    painter.translate(getCenter());
 
     // plot axes from world space
     int mx = this->height() + this->width();
@@ -74,8 +73,8 @@ void RenderArea::mousePressEvent(QMouseEvent *event)
 void RenderArea::mouseMoveEvent(QMouseEvent *event)
 {
     if (event->modifiers() == Qt::ControlModifier) {
-        QPoint s = startPos - center * shift;
-        QPoint p = event->pos() - center * shift;
+        QPoint s = startPos - getCenter() * shift;
+        QPoint p = event->pos() - getCenter() * shift;
         double delta = atan2(QPoint::dotProduct(s, p),
                              s.x()*p.y()-s.y()*p.x()) - M_PI/2;
         double cosd = cos(delta), sind = sin(delta);
@@ -87,32 +86,19 @@ void RenderArea::mouseMoveEvent(QMouseEvent *event)
     }
 }
 
-void RenderArea::mouseReleaseEvent(QMouseEvent*) {
+void RenderArea::mouseReleaseEvent(QMouseEvent*)
+{
     unsetCursor();
 }
 
-void RenderArea::wheelEvent(QWheelEvent *event) {
+void RenderArea::wheelEvent(QWheelEvent *event)
+{
     if (!event->pixelDelta().isNull())
-        setScale(QTransform(scale.m11() + event->pixelDelta().x(), 0, 0,
-                            scale.m22() + event->pixelDelta().y(), 0, 0));
+        setScale(QTransform(scale.m11() + event->pixelDelta().x()*0.1, 0, 0,
+                            scale.m22() + event->pixelDelta().y()*0.1, 0, 0));
     else if (!event->angleDelta().isNull())
         setScale(QTransform(scale.m11() + event->angleDelta().x()*0.1, 0, 0,
                             scale.m22() + event->angleDelta().y()*0.1, 0, 0));
-}
-
-const QTransform &RenderArea::getScale() const
-{
-    return scale;
-}
-
-const QTransform &RenderArea::getShift() const
-{
-    return shift;
-}
-
-void RenderArea::setCenter(QPoint newCenter)
-{
-    center = newCenter;
 }
 
 void RenderArea::setRotate(const QTransform &newRotate)
@@ -138,25 +124,15 @@ void RenderArea::setScale(const QTransform &newScale)
     if (newScale.m22() < 0) return;
     scale = newScale;
     update();
-    static int cnt = 0;
-    cnt++;
-    emit debugSC("RA scale: " + QString::number(cnt));
     emit scaleChanged(scale);
 }
 
-//void RenderArea::resize(int w, int h)
-//{
-//    static int cnt = 0;
-//    cnt++;
-//    emit debugRA("RA resize: " + QString::number(cnt));
-////    parentWidget()->resize(w, h);
-//////    parentWidget()->setBaseSize(w, h);
-
-//////    QWidget::resize(w, h); // 100 - 273/222
-////    double ratio = (double) w / this->size().width();
-////    setFixedSize(w, h);
-
-////    center = { width() / 2, height() / 2 };
-////    setScale(scale * ratio);
-////    setShift(shift * ratio);
-//}
+void RenderArea::resize(int w, int h)
+{
+    double ratio = (double) w / width();
+    QWidget::resize(w, h);
+    setScale(QTransform(scale.m11() * ratio, 0, 0,
+                        scale.m22() * ratio, 0, 0));
+    setShift(QTransform(1, 0, 0, 1, shift.dx() * ratio,
+                                    shift.dy() * ratio));
+}
