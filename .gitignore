@@ -1,0 +1,4 @@
+*.pro*
+*.o
+Makefile
+.qmake*
