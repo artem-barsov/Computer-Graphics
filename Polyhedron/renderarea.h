@@ -5,15 +5,16 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QMatrix4x4>
+#include <cmath>
 #include "polyhedron.h"
 
 class RenderArea : public QWidget
 {
     Q_OBJECT
 public:
-    RenderArea(QWidget *parent);
+    enum FaceVariant { NONE, RANDOM, DEFAULT };
 
-    ~RenderArea();
+    RenderArea(QWidget *parent);
 
     void resize(int w, int h);
 
@@ -25,27 +26,47 @@ public:
 
     void setShift(const QMatrix4x4 &newShift);
 
-    void setRotateX(const QMatrix4x4 &newRotateX);
-
-    void setRotateY(const QMatrix4x4 &newRotateY);
-
-    void setRotateZ(const QMatrix4x4 &newRotateZ);
-
-public slots:
     void update();
 
+    void rotateX(double degree, bool silent = false);
+
+    void rotateY(double degree, bool silent = false);
+
+    void rotateZ(double degree, bool silent = false);
+
+    void doShift(int x, int y, int z, bool silent = false);
+
+    void setFaceVariant(FaceVariant newFaceVariant);
+
+    void setIsDrawingNormals(bool newIsDrawingNormals);
+
+    void setIsNormalMethodEnabled(bool newIsNormalMethodEnabled);
+
+    void setIsZBufferingEnabled(bool newIsZBufferingEnabled);
+
+    void setPoint_viewport(const QMatrix4x4 &newPoint_viewport);
+
+public slots:
+    void setIsDrawWireframe(bool newIsDrawWireframe);
+
+    void setSideView();
+
+    void setFrontView();
+
+    void setTopView();
+
+    void setOrthoView();
+
+    void positIsometric();
+
 signals:
-    void scaleChanged();
+    void scaleChanged(QMatrix4x4);
 
     void rotateChanged();
 
-    void shiftChanged();
+    void shiftChanged(QMatrix4x4);
 
-    void rotateXChanged(QMatrix4x4);
-
-    void rotateYChanged(QMatrix4x4);
-
-    void rotateZChanged();
+    void debug(QMatrix4x4);
 
 protected:
     virtual void paintEvent       (QPaintEvent *event) override;
@@ -54,23 +75,31 @@ protected:
     virtual void mouseReleaseEvent(QMouseEvent *event) override;
     virtual void wheelEvent       (QWheelEvent *event) override;
 
-private:
-    QPoint startPos;
-    QMatrix4x4 startRotateX, startRotateY;
+private: QMatrix4x4 NormalVecTransf(const QMatrix4x4& m);
 
 private:
+    static const QMatrix4x4 viewSide;
+    static const QMatrix4x4 viewTop;
+    static const QMatrix4x4 viewFront;
+    static const QMatrix4x4 viewOrtho;
     Polyhedron cube;
     QMatrix4x4 scale;
-    QMatrix4x4 rotateX, rotateY, rotateZ;
     QMatrix4x4 rotate;
     QMatrix4x4 shift;
-    QMatrix4x4 world_trans;
+    QMatrix4x4 projecion;
+    QPoint prevPos;
+    QMatrix4x4 point_WorldTrans;
+    QMatrix4x4 vector_WorldTrans;
+    QMatrix4x4 point_viewport;
+    FaceVariant faceVariant;
+    QBrush polygonPainting;
+    bool isDrawingWireframe;
+    bool isDrawingNormals;
+    bool isNormalMethodEnabled;
+    bool isZBufferingEnabled;
     Q_PROPERTY(QMatrix4x4 scale WRITE setScale NOTIFY scaleChanged)
     Q_PROPERTY(QMatrix4x4 rotate WRITE setRotate NOTIFY rotateChanged)
     Q_PROPERTY(QMatrix4x4 shift WRITE setShift NOTIFY shiftChanged)
-    Q_PROPERTY(QMatrix4x4 rotateX WRITE setRotateX NOTIFY rotateXChanged)
-    Q_PROPERTY(QMatrix4x4 rotateY WRITE setRotateY NOTIFY rotateYChanged)
-    Q_PROPERTY(QMatrix4x4 rotateZ WRITE setRotateZ NOTIFY rotateZChanged)
 };
 
 #endif // RENDERAREA_H

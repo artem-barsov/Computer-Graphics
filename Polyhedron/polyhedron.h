@@ -2,7 +2,9 @@
 #define POLYHEDRON_H
 
 #include <QVector>
+#include <QVector3D>
 #include <QVector4D>
+#include <QColor>
 
 struct Polygon;
 
@@ -20,8 +22,14 @@ struct Polygon
     QVector<Vertex*> vertices;
     QVector4D normal_local;
     QVector4D normal_world;
+    QColor color;
     Polygon() = default;
     Polygon(QVector<Vertex*> v) : vertices(v) { }
+    QVector4D mid() const {
+        return std::accumulate(vertices.begin(), vertices.end(), QVector4D(),
+            [](QVector4D s, Vertex* v){ return s += v->point_world;
+                }) / vertices.size();
+    }
 };
 
 struct Polyhedron
@@ -29,39 +37,40 @@ struct Polyhedron
     QVector<Vertex> vertices;
     QVector<Polygon> polygons;
 
-    static Polyhedron GenerateCube() {
-        Polyhedron cube;
-        for (int x : {-50, 50})
-            for (int y : {-50, 50})
-                for (int z : {-50, 50})
-                    cube.vertices.push_back({x, y, z});
-        cube.polygons.resize(6);
-        for (int p : {0, 1, 3, 2}) {
-            cube.polygons[0].vertices.push_back(&cube.vertices[p]);
-            cube.vertices[p].polygons.push_back(&cube.polygons[0]);
-        }
-        for (int p : {0, 1, 5, 4}) {
-            cube.polygons[1].vertices.push_back(&cube.vertices[p]);
-            cube.vertices[p].polygons.push_back(&cube.polygons[1]);
-        }
-        for (int p : {0, 2, 6, 4}) {
-            cube.polygons[2].vertices.push_back(&cube.vertices[p]);
-            cube.vertices[p].polygons.push_back(&cube.polygons[2]);
-        }
-        for (int p : {1, 3, 7, 5}) {
-            cube.polygons[3].vertices.push_back(&cube.vertices[p]);
-            cube.vertices[p].polygons.push_back(&cube.polygons[3]);
-        }
-        for (int p : {2, 3, 7, 6}) {
-            cube.polygons[4].vertices.push_back(&cube.vertices[p]);
-            cube.vertices[p].polygons.push_back(&cube.polygons[4]);
-        }
-        for (int p : {4, 5, 7, 6}) {
-            cube.polygons[5].vertices.push_back(&cube.vertices[p]);
-            cube.vertices[p].polygons.push_back(&cube.polygons[5]);
-        }
-        return cube;
-    }
+    static Polyhedron GenerateCube();
 };
+
+inline Polyhedron Polyhedron::GenerateCube()
+{
+    const int L = 50;
+    Polyhedron cube;
+    for (int x : {-L, L})
+        for (int y : {-L, L})
+            for (int z : {-L, L})
+                cube.vertices.push_back({x, y, z});
+    QVector<QVector<int> > planes = {
+        { 0, 1, 3, 2 },
+        { 0, 2, 6, 4 },
+        { 0, 4, 5, 1 },
+        { 1, 5, 7, 3 },
+        { 2, 3, 7, 6 },
+        { 4, 6, 7, 5 },
+    };
+    cube.polygons.resize(planes.size());
+    for (int i = 0; i < planes.size(); i++) {
+        for (int p : planes[i]) {
+            cube.polygons[i].vertices.push_back(&cube.vertices[p]);
+            cube.vertices[p].polygons.push_back(&cube.polygons[i]);
+        }
+        cube.polygons[i].normal_local = QVector3D::normal(
+            cube.polygons[i].vertices[0]->point_local.toVector3D(),
+            cube.polygons[i].vertices[1]->point_local.toVector3D(),
+            cube.polygons[i].vertices[2]->point_local.toVector3D()
+        ) * L * 0.3;
+        cube.polygons[i].normal_local.setW(0);
+        cube.polygons[i].color = rand();
+    }
+    return cube;
+}
 
 #endif // POLYHEDRON_H
