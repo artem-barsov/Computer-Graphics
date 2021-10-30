@@ -38,6 +38,7 @@ struct Polyhedron
     QVector<Polygon> polygons;
 
     static Polyhedron GenerateCube();
+    static Polyhedron GeneratePyramid();
 };
 
 inline Polyhedron Polyhedron::GenerateCube()
@@ -71,6 +72,38 @@ inline Polyhedron Polyhedron::GenerateCube()
         cube.polygons[i].color = rand();
     }
     return cube;
+}
+
+inline Polyhedron Polyhedron::GeneratePyramid()
+{
+    const int L = 50;
+    Polyhedron pyramid;
+    for (int x : {-L, L})
+        for (int z : {-L, L})
+                pyramid.vertices.push_back({x, 0, z});
+    pyramid.vertices.push_back({0, -L, 0});
+    QVector<QVector<int> > planes = {
+        { 0, 1, 3, 2 },
+        { 0, 2, 4 },
+        { 0, 4, 1 },
+        { 1, 4, 3 },
+        { 2, 3, 4 }
+    };
+    pyramid.polygons.resize(planes.size());
+    for (int i = 0; i < planes.size(); i++) {
+        for (int p : planes[i]) {
+            pyramid.polygons[i].vertices.push_back(&pyramid.vertices[p]);
+            pyramid.vertices[p].polygons.push_back(&pyramid.polygons[i]);
+        }
+        pyramid.polygons[i].normal_local = QVector3D::normal(
+            pyramid.polygons[i].vertices[0]->point_local.toVector3D(),
+            pyramid.polygons[i].vertices[1]->point_local.toVector3D(),
+            pyramid.polygons[i].vertices[2]->point_local.toVector3D()
+        ) * L * 0.3;
+        pyramid.polygons[i].normal_local.setW(0);
+        pyramid.polygons[i].color = rand();
+    }
+    return pyramid;
 }
 
 #endif // POLYHEDRON_H

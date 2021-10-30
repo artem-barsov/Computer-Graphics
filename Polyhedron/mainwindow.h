@@ -3,7 +3,6 @@
 
 #include <QMainWindow>
 #include "renderarea.h"
-#include "graph.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }

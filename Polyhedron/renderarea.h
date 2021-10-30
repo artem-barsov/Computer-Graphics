@@ -42,9 +42,11 @@ public:
 
     void setIsNormalMethodEnabled(bool newIsNormalMethodEnabled);
 
-    void setIsZBufferingEnabled(bool newIsZBufferingEnabled);
+    void setIsZSortingEnabled(bool newIsZSortingEnabled);
 
     void setPoint_viewport(const QMatrix4x4 &newPoint_viewport);
+
+    void setFigure(const Polyhedron &newFigure);
 
 public slots:
     void setIsDrawWireframe(bool newIsDrawWireframe);
@@ -78,11 +80,7 @@ protected:
 private: QMatrix4x4 NormalVecTransf(const QMatrix4x4& m);
 
 private:
-    static const QMatrix4x4 viewSide;
-    static const QMatrix4x4 viewTop;
-    static const QMatrix4x4 viewFront;
-    static const QMatrix4x4 viewOrtho;
-    Polyhedron cube;
+    Polyhedron figure;
     QMatrix4x4 scale;
     QMatrix4x4 rotate;
     QMatrix4x4 shift;
@@ -96,7 +94,11 @@ private:
     bool isDrawingWireframe;
     bool isDrawingNormals;
     bool isNormalMethodEnabled;
-    bool isZBufferingEnabled;
+    bool isZSortingEnabled;
+    static const QMatrix4x4 viewSide;
+    static const QMatrix4x4 viewTop;
+    static const QMatrix4x4 viewFront;
+    static const QMatrix4x4 viewOrtho;
     Q_PROPERTY(QMatrix4x4 scale WRITE setScale NOTIFY scaleChanged)
     Q_PROPERTY(QMatrix4x4 rotate WRITE setRotate NOTIFY rotateChanged)
     Q_PROPERTY(QMatrix4x4 shift WRITE setShift NOTIFY shiftChanged)

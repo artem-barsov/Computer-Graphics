@@ -56,6 +56,14 @@ MainWindow::MainWindow(QWidget *parent)
         ra->setShift(E);
     });
 
+    connect(ui->figure_comboBox, &QComboBox::currentTextChanged,
+            ra, [this](const QString& var) {
+        if (var == "Cube")
+            ra->setFigure(Polyhedron::GenerateCube());
+        else if (var == "Pyramid")
+            ra->setFigure(Polyhedron::GeneratePyramid());
+    });
+
     connect(ui->none_radioButton, &QRadioButton::clicked,
             ra, [this](){ ra->setFaceVariant(
                         RenderArea::FaceVariant::NONE); });
@@ -72,8 +80,8 @@ MainWindow::MainWindow(QWidget *parent)
             ra, &RenderArea::setIsDrawingNormals);
     connect(ui->normalMethod_checkBox, &QCheckBox::clicked,
             ra, &RenderArea::setIsNormalMethodEnabled);
-    connect(ui->ZBuffering_checkBox, &QCheckBox::clicked,
-            ra, &RenderArea::setIsZBufferingEnabled);
+    connect(ui->ZSorting_checkBox, &QCheckBox::clicked,
+            ra, &RenderArea::setIsZSortingEnabled);
 
     connect(ui->ortho_radioButton, &QRadioButton::clicked,
             ra, &RenderArea::setOrthoView);
@@ -114,6 +122,8 @@ MainWindow::MainWindow(QWidget *parent)
             ui->tableWidget->setItem(i, j, new QTableWidgetItem(
                                          QString::number(mtx(i, j))));
     });
+    emit ui->figure_comboBox->currentTextChanged(
+                ui->figure_comboBox->currentText());
     emit this->scale_doubleSpinBoxChanged();
     emit this->shift_spinBoxChanged();
 }

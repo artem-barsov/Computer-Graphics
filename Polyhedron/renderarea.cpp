@@ -7,12 +7,11 @@ const QMatrix4x4 RenderArea::viewOrtho = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
 
 RenderArea::RenderArea(QWidget *parent)
     : QWidget(parent)
-    , cube(Polyhedron::GenerateCube())
     , faceVariant(NONE)
     , isDrawingWireframe(true)
     , isDrawingNormals(false)
     , isNormalMethodEnabled(true)
-    , isZBufferingEnabled(false)
+    , isZSortingEnabled(false)
 {
     QWidget::resize(parent->size());
     update();
@@ -59,22 +58,24 @@ void RenderArea::paintEvent(QPaintEvent*)
     painter.translate(getCenter());
 
     // transform cube
-    for (auto& v : cube.vertices)
+    for (auto& v : figure.vertices)
         v.point_world = point_WorldTrans * v.point_local;
-    for (auto& p : cube.polygons)
+    for (auto& p : figure.polygons)
         p.normal_world = vector_WorldTrans * p.normal_local;
 
     QVector<Polygon> tmpPolygons;
-    if (isZBufferingEnabled) {
-        tmpPolygons = cube.polygons;
-        std::sort(cube.polygons.begin(), cube.polygons.end(),
+    if (isZSortingEnabled) {
+        tmpPolygons = figure.polygons;
+        std::sort(figure.polygons.begin(), figure.polygons.end(),
                   [&](const Polygon& lhs, const Polygon& rhs) {
-            return lhs.mid().z() > rhs.mid().z();
+            if (!qFuzzyCompare(lhs.mid().z(), rhs.mid().z()))
+                return lhs.mid().z() > rhs.mid().z();
+            return lhs.normal_world.z() > rhs.normal_world.z();
         });
     }
 
     // plot cube
-    for (const auto& p : qAsConst(cube.polygons)) {
+    for (const auto& p : qAsConst(figure.polygons)) {
         QVector<QPointF> proj;
         for (const auto v : p.vertices)
             proj.push_back(v->point_world.toPointF());
@@ -93,7 +94,7 @@ void RenderArea::paintEvent(QPaintEvent*)
             painter.drawEllipse((p.mid() + p.normal_world).toPoint(), 4, 4);
         }
     }
-    if (isZBufferingEnabled) cube.polygons = tmpPolygons;
+    if (isZSortingEnabled) figure.polygons = tmpPolygons;
     painter.end();
 }
 
@@ -162,15 +163,21 @@ QMatrix4x4 RenderArea::NormalVecTransf(const QMatrix4x4 &m)
                 0,           0,           0,           0);
 }
 
+void RenderArea::setFigure(const Polyhedron &newFigure)
+{
+    figure = newFigure;
+    update();
+}
+
 void RenderArea::setPoint_viewport(const QMatrix4x4 &newPoint_viewport)
 {
     point_viewport = newPoint_viewport;
     update();
 }
 
-void RenderArea::setIsZBufferingEnabled(bool newIsZBufferingEnabled)
+void RenderArea::setIsZSortingEnabled(bool newIsZBufferingEnabled)
 {
-    isZBufferingEnabled = newIsZBufferingEnabled;
+    isZSortingEnabled = newIsZBufferingEnabled;
     update();
 }
 
