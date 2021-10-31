@@ -81,7 +81,7 @@ inline Polyhedron Polyhedron::GeneratePyramid()
     for (int x : {-L, L})
         for (int z : {-L, L})
                 pyramid.vertices.push_back({x, 0, z});
-    pyramid.vertices.push_back({0, -L, 0});
+    pyramid.vertices.push_back({0, -3*L, 0});
     QVector<QVector<int> > planes = {
         { 0, 1, 3, 2 },
         { 0, 2, 4 },

@@ -43,21 +43,24 @@ void RenderArea::paintEvent(QPaintEvent*)
     painter.setBrush(QBrush(Qt::GlobalColor::gray,
                             Qt::BrushStyle::Dense7Pattern));
     painter.drawEllipse({0, 0}, 55, 55);
-    QVector3D Ax(50, 0, 0);
-    QVector3D Ay(0, 50, 0);
-    QVector3D Az(0, 0, 50);
+    QPoint Ax = (rotate * QVector3D(50, 0, 0)).toPoint();
+    QPoint Ay = (rotate * QVector3D(0, 50, 0)).toPoint();
+    QPoint Az = (rotate * QVector3D(0, 0, 50)).toPoint();
     painter.setPen(Qt::GlobalColor::red);
-    painter.drawLine(QPoint(0, 0), (rotate * Ax).toPoint());
+    painter.drawLine(QPoint(0, 0), Ax);
+    painter.drawText(Ax, "X");
     painter.setPen(Qt::GlobalColor::green);
-    painter.drawLine(QPoint(0, 0), (rotate * Ay).toPoint());
+    painter.drawLine(QPoint(0, 0), Ay);
+    painter.drawText(Ay, "Y");
     painter.setPen(Qt::GlobalColor::blue);
-    painter.drawLine(QPoint(0, 0), (rotate * Az).toPoint());
+    painter.drawLine(QPoint(0, 0), Az);
+    painter.drawText(Az, "Z");
     painter.translate(-60, -60);
 
     // to screen space
     painter.translate(getCenter());
 
-    // transform cube
+    // transform figure
     for (auto& v : figure.vertices)
         v.point_world = point_WorldTrans * v.point_local;
     for (auto& p : figure.polygons)
@@ -74,7 +77,7 @@ void RenderArea::paintEvent(QPaintEvent*)
         });
     }
 
-    // plot cube
+    // plot figure
     for (const auto& p : qAsConst(figure.polygons)) {
         QVector<QPointF> proj;
         for (const auto v : p.vertices)
@@ -175,9 +178,9 @@ void RenderArea::setPoint_viewport(const QMatrix4x4 &newPoint_viewport)
     update();
 }
 
-void RenderArea::setIsZSortingEnabled(bool newIsZBufferingEnabled)
+void RenderArea::setIsZSortingEnabled(bool newIsZSortingEnabled)
 {
-    isZSortingEnabled = newIsZBufferingEnabled;
+    isZSortingEnabled = newIsZSortingEnabled;
     update();
 }
 
