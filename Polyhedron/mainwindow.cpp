@@ -6,6 +6,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    // test
     margin.setWidth(this->width() - (ui->draw_widget->x() + ui->draw_widget->width()));
     margin.setHeight(this->height() - (ui->draw_widget->y() + ui->draw_widget->height()));
     ra = new RenderArea(ui->draw_widget);
