@@ -1,9 +1,10 @@
-#ifndef POLYHEDRON_H
-#define POLYHEDRON_H
+#ifndef PRIMITIVES_H
+#define PRIMITIVES_H
 
 #include <QVector>
 #include <QVector3D>
 #include <QVector4D>
+#include <QMatrix4x4>
 #include <QColor>
 #include <cmath>
 
@@ -14,8 +15,30 @@ struct Vertex
     QVector<Polygon*> polygons;
     QVector4D point_local;
     QVector4D point_world;
+    QVector4D normal_local;
+    QVector4D normal_world;
+
+    QVector3D ambient;
+    QVector3D diffuse;
+    QVector3D light;
     Vertex() = default;
     Vertex(double x, double y, double z) : point_local(x, y, z, 1) { }
+    Vertex& operator+= (const Vertex& other) {
+        this->point_world += other.point_world;
+        this->light += other.light;
+        return *this;
+    }
+    friend Vertex operator+ (Vertex lhs, const Vertex& rhs) {
+        return lhs += rhs;
+    }
+    Vertex& operator/= (const double other) {
+        this->point_world /= other;
+        this->light /= other;
+        return *this;
+    }
+    friend Vertex operator/ (Vertex lhs, int rhs) {
+        return lhs /= rhs;
+    }
 };
 
 struct Polygon
@@ -26,9 +49,9 @@ struct Polygon
     QColor color;
     Polygon() = default;
     Polygon(QVector<Vertex*> v) : vertices(v) { }
-    QVector4D mid() const {
-        return std::accumulate(vertices.begin(), vertices.end(), QVector4D(),
-            [](QVector4D s, Vertex* v){ return s += v->point_world;
+    Vertex mid() const {
+        return std::accumulate(vertices.begin(), vertices.end(), Vertex(),
+            [](const Vertex& s, const Vertex* v){ return s + *v;
                 }) / vertices.size();
     }
     void create_normal() {
@@ -36,7 +59,7 @@ struct Polygon
             vertices[0]->point_local.toVector3D(),
             vertices[1]->point_local.toVector3D(),
             vertices[2]->point_local.toVector3D()
-        ) * 3;
+        );
     }
 };
 
@@ -47,7 +70,24 @@ struct Polyhedron
 
     static Polyhedron GenerateCube();
     static Polyhedron GeneratePyramid();
-    static Polyhedron GenerateConeMesh(double r1, double r2, double h, double k, int h_apr, int v_apr);
+    static Polyhedron GenerateConeMesh(double r1, double r2, double h,
+                                       double k, int h_apr, int v_apr);
+};
+
+struct Lighter
+{
+    QVector4D pos_world;
+    QMatrix4x4 rotate;
+    int distance;
+    QVector3D ambient;
+    QVector3D intensity;
+
+    Lighter() {
+        QMatrix4x4 E;
+        E.rotate(-150, {0,1,0});
+        E.rotate(  30, {1,0,0});
+        rotate = E;
+    }
 };
 
 inline Polyhedron Polyhedron::GenerateCube()
@@ -89,8 +129,8 @@ inline Polyhedron Polyhedron::GeneratePyramid()
     Polyhedron pyramid;
     for (double x : {-L, L})
         for (double z : {-L, L})
-                pyramid.vertices.push_back({x, 0, z});
-    pyramid.vertices.push_back({0, -3*L, 0});
+                pyramid.vertices.push_back({x, 1.5*L, z});
+    pyramid.vertices.push_back({0, -1.5*L, 0});
     QVector<QVector<int> > planes = {
         { 0, 1, 3, 2 },
         { 0, 2, 4 },
@@ -115,7 +155,8 @@ inline Polyhedron Polyhedron::GeneratePyramid()
     return pyramid;
 }
 
-inline Polyhedron Polyhedron::GenerateConeMesh(double r1, double r2, double h, double base_ratio, int h_appr, int v_appr)
+inline Polyhedron Polyhedron::GenerateConeMesh(double r1, double r2, double h,
+                                               double base_ratio, int h_appr, int v_appr)
 {
     Polyhedron cone;
     const double step = 2.0 * acos(-1) / h_appr;
@@ -132,45 +173,50 @@ inline Polyhedron Polyhedron::GenerateConeMesh(double r1, double r2, double h, d
     cone.vertices.push_back({ 0, -h / 2, 0 });
     for (int i = 1; i <= v_appr; i++) {
         for (int j = 0; j < h_appr; j++) {
-            cone.polygons.push_back({ { &cone.vertices[   i  * h_appr +  j         ]        //  1
-                                      , &cone.vertices[(i-1) * h_appr +  j         ]        //  |\.
+            cone.polygons.push_back({ { &cone.vertices[   i  * h_appr +  j          ]        //  1
+                                      , &cone.vertices[(i-1) * h_appr +  j          ]        //  |\.
                                       , &cone.vertices[(i-1) * h_appr + (j+1)%h_appr] } });  //  2-3
             cone.polygons.back().create_normal();
             cone.polygons.back().color = rand();
-            cone.vertices[   i  * h_appr + j          ].polygons.push_back(&cone.polygons.back());
-            cone.vertices[(i-1) * h_appr + j          ].polygons.push_back(&cone.polygons.back());
+            cone.vertices[   i  * h_appr + j           ].polygons.push_back(&cone.polygons.back());
+            cone.vertices[(i-1) * h_appr + j           ].polygons.push_back(&cone.polygons.back());
             cone.vertices[(i-1) * h_appr + (j+1)%h_appr].polygons.push_back(&cone.polygons.back());
             cone.polygons.push_back({ { &cone.vertices[(i-1) * h_appr + (j+1)%h_appr]        //  3-2
                                       , &cone.vertices[   i  * h_appr + (j+1)%h_appr]        //   \|
-                                      , &cone.vertices[   i  * h_appr +  j         ] } });  //    1
+                                      , &cone.vertices[   i  * h_appr +  j          ] } });  //    1
             cone.polygons.back().create_normal();
             cone.polygons.back().color = rand();
             cone.vertices[(i-1) * h_appr + (j+1)%h_appr].polygons.push_back(&cone.polygons.back());
             cone.vertices[   i  * h_appr + (j+1)%h_appr].polygons.push_back(&cone.polygons.back());
-            cone.vertices[   i  * h_appr +  j         ].polygons.push_back(&cone.polygons.back());
+            cone.vertices[   i  * h_appr +  j          ].polygons.push_back(&cone.polygons.back());
         }
     }
     for (int i = 0; i < h_appr; i++) {
         cone.polygons.push_back({ { &cone.vertices[cone.vertices.size()-2]
-                                  , &cone.vertices[      (i+1)%h_appr     ]
+                                  , &cone.vertices[      (i+1)%h_appr    ]
                                   , &cone.vertices[          i           ] } });
         cone.polygons.back().create_normal();
         cone.polygons.back().color = rand();
         cone.vertices[cone.vertices.size()-2].polygons.push_back(&cone.polygons.back());
-        cone.vertices[      (i+1)%h_appr     ].polygons.push_back(&cone.polygons.back());
+        cone.vertices[      (i+1)%h_appr    ].polygons.push_back(&cone.polygons.back());
         cone.vertices[          i           ].polygons.push_back(&cone.polygons.back());
     }
     for (int i = 0; i < h_appr; i++) {
         cone.polygons.push_back({ { &cone.vertices.back()
-                                  , &cone.vertices[h_appr * v_appr +  i         ]
+                                  , &cone.vertices[h_appr * v_appr +  i          ]
                                   , &cone.vertices[h_appr * v_appr + (i+1)%h_appr] } });
         cone.polygons.back().create_normal();
         cone.polygons.back().color = rand();
-        cone.vertices.back()                      .polygons.push_back(&cone.polygons.back());
-        cone.vertices[h_appr * v_appr +  i         ].polygons.push_back(&cone.polygons.back());
+        cone.vertices.back()                         .polygons.push_back(&cone.polygons.back());
+        cone.vertices[h_appr * v_appr +  i          ].polygons.push_back(&cone.polygons.back());
         cone.vertices[h_appr * v_appr + (i+1)%h_appr].polygons.push_back(&cone.polygons.back());
+    }
+    for (auto& v : cone.vertices) {
+        v.normal_local = std::accumulate(v.polygons.begin(), v.polygons.end(), QVector4D(),
+                         [](const QVector4D& n, const Polygon* p){ return n + p->normal_local; })
+                         / v.polygons.size();
     }
     return cone;
 }
 
-#endif // POLYHEDRON_H
+#endif // PRIMITIVES_H
