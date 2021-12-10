@@ -6,12 +6,12 @@ const QMatrix4x4 RenderArea::viewFront = { 1,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,1 };
 const QMatrix4x4 RenderArea::viewOrtho = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
 
 RenderArea::RenderArea(QWidget *parent)
-    : QWidget(parent)
-    , faceVariant(NONE)
-    , isDrawingWireframe(true)
-    , isDrawingNormals(false)
-    , isNormalMethodEnabled(true)
-    , isZSortingEnabled(false)
+    : QWidget               (parent)
+    , faceVariant           (DEFAULT)
+    , isDrawingWireframe    (false)
+    , isDrawingNormals      (false)
+    , isNormalMethodEnabled (true)
+    , isZSortingEnabled     (false)
 {
     QWidget::resize(parent->size());
     update();
@@ -38,66 +38,44 @@ void RenderArea::paintEvent(QPaintEvent*)
     painter.setPen(Qt::GlobalColor::gray);
     painter.drawRect(0, 0, width()-1, height()-1);
 
-    // plot axes
-    painter.translate(60, 60);
-    painter.setBrush(QBrush(Qt::GlobalColor::gray,
-                            Qt::BrushStyle::Dense7Pattern));
-    painter.drawEllipse({0, 0}, 55, 55);
-    QPoint Ax = (rotate * QVector3D(50, 0, 0)).toPoint();
-    QPoint Ay = (rotate * QVector3D(0, 50, 0)).toPoint();
-    QPoint Az = (rotate * QVector3D(0, 0, 50)).toPoint();
-    painter.setPen(Qt::GlobalColor::red);
-    painter.drawLine(QPoint(0, 0), Ax);
-    painter.drawText(Ax, "X");
-    painter.setPen(Qt::GlobalColor::green);
-    painter.drawLine(QPoint(0, 0), Ay);
-    painter.drawText(Ay, "Y");
-    painter.setPen(Qt::GlobalColor::blue);
-    painter.drawLine(QPoint(0, 0), Az);
-    painter.drawText(Az, "Z");
-    painter.translate(-60, -60);
-
-    // to screen space
-    painter.translate(getCenter());
-
-    // transform figure
-    for (auto& v : figure.vertices)
-        v.point_world = point_WorldTrans * v.point_local;
-    for (auto& p : figure.polygons)
-        p.normal_world = vector_WorldTrans * p.normal_local;
-
-    QVector<Polygon> tmpPolygons;
+    // transform
     if (isZSortingEnabled) {
-        tmpPolygons = figure.polygons;
         std::sort(figure.polygons.begin(), figure.polygons.end(),
                   [&](const Polygon& lhs, const Polygon& rhs) {
-            if (!qFuzzyCompare(lhs.mid().z(), rhs.mid().z()))
-                return lhs.mid().z() > rhs.mid().z();
+            if (!qFuzzyCompare(lhs.mid().point_world.z(), rhs.mid().point_world.z()))
+                return lhs.mid().point_world.z() > rhs.mid().point_world.z();
             return lhs.normal_world.z() > rhs.normal_world.z();
         });
     }
-
-    // plot figure
-    for (const auto& p : qAsConst(figure.polygons)) {
-        QVector<QPointF> proj;
-        for (const auto v : p.vertices)
-            proj.push_back(v->point_world.toPointF());
-        if (isNormalMethodEnabled && p.normal_world.z() >= 0) continue;
-        painter.setBrush(faceVariant == RANDOM  ? QBrush(p.color) :
-                         faceVariant == DEFAULT ? QBrush(Qt::GlobalColor::cyan)
-                                                : QBrush(Qt::BrushStyle::NoBrush));
-        painter.setPen(isDrawingWireframe ? Qt::GlobalColor::black
-                                          : Qt::GlobalColor::transparent);
-        painter.drawPolygon(proj);
-        if (isDrawingNormals) {
-            painter.setPen(Qt::GlobalColor::red);
-            painter.setBrush(Qt::GlobalColor::red);
-            painter.drawEllipse(p.mid().toPoint(), 2, 2);
-            painter.drawLine(p.mid().toPoint(), (p.mid()+ p.normal_world).toPoint());
-            painter.drawEllipse((p.mid() + p.normal_world).toPoint(), 4, 4);
-        }
+    lighter.pos_world = lighter.rotate.transposed() *
+            QVector4D(0, 0, lighter.distance, 1);
+    for (auto& p : figure.polygons)
+        p.normal_world = vector_WorldTrans * p.normal_local;
+    for (auto& v : figure.vertices) {
+        v.point_world = point_WorldTrans * v.point_local;
+        v.normal_world = vector_WorldTrans * v.normal_local;
+        v.light = v.ambient * lighter.ambient;
+        QVector4D L = (lighter.pos_world - v.point_world).normalized();
+        double cosAngl = QVector4D::dotProduct(L, v.normal_world.normalized());
+        if (cosAngl > 0) v.light += v.diffuse * lighter.intensity * cosAngl;
     }
-    if (isZSortingEnabled) figure.polygons = tmpPolygons;
+
+    // plot
+    painter.translate(60, 60);
+    plotAxes(painter);
+    painter.translate(-60, -60);
+
+    painter.translate(getCenter());
+    if ((point_WorldTrans * QVector4D()).z() > lighter.pos_world.z()) {
+        plotFigure(painter);
+        plotLighter(painter);
+    }
+    else {
+        plotLighter(painter);
+        plotFigure(painter);
+    }
+    painter.translate(-getCenter());
+
     painter.end();
 }
 
@@ -109,6 +87,7 @@ void RenderArea::mousePressEvent(QMouseEvent *event)
 
 void RenderArea::mouseMoveEvent(QMouseEvent *event)
 {
+    QPoint delta = event->pos() - prevPos;
     switch (event->modifiers()) {
     case Qt::ControlModifier: {
         QPoint s = prevPos - shift * getCenter();
@@ -118,13 +97,24 @@ void RenderArea::mouseMoveEvent(QMouseEvent *event)
         rotateZ(delta * 180.0 / M_PI);
         break;
     }
+    case Qt::ControlModifier | Qt::AltModifier: {
+        QPoint s = prevPos - shift * getCenter();
+        QPoint p = event->pos() - shift * getCenter();
+        double delta = atan2(QPoint::dotProduct(s, p),
+                             s.x()*p.y()-s.y()*p.x()) - M_PI/2;
+        lighter_rotateZ(delta * 180.0 / M_PI);
+        break;
+    }
     case Qt::ShiftModifier: {
-        QPoint delta = event->pos() - prevPos;
         doShift(delta.x(), delta.y(), 0);
         break;
     }
+    case Qt::AltModifier: {
+        lighter_rotateX(-delta.y(), true);
+        lighter_rotateY(delta.x());
+        break;
+    }
     default: {
-        QPoint delta = event->pos() - prevPos;
         rotateX(-delta.y(), true);
         rotateY(delta.x());
         break;
@@ -140,15 +130,22 @@ void RenderArea::mouseReleaseEvent(QMouseEvent*)
 
 void RenderArea::wheelEvent(QWheelEvent *event)
 {
-    QMatrix4x4 E;
+    QPoint delta;
     if (!event->pixelDelta().isNull())
-        E.scale(event->pixelDelta().y());
+        delta = event->pixelDelta();
     else if (!event->angleDelta().isNull())
-        E.scale(event->angleDelta().y());
+        delta = event->angleDelta();
     else
-        E.scale(0);
-    E(3, 3) = 0;
-    setScale(scale + E * 0.003);
+        delta = {0,0};
+    if (event->modifiers() == Qt::NoModifier) {
+        QMatrix4x4 E;
+        E.scale(delta.y());
+        E(3, 3) = 0;
+        setScale(scale + E * 0.003);
+    }
+    else if (event->modifiers() == Qt::AltModifier) {
+        setLighterDistance(lighter.distance + delta.x());
+    }
 }
 
 QMatrix4x4 RenderArea::NormalVecTransf(const QMatrix4x4 &m)
@@ -164,6 +161,74 @@ QMatrix4x4 RenderArea::NormalVecTransf(const QMatrix4x4 &m)
                 m(1, 0) * m(0, 2) - m(1, 2) * m(0, 0),
                 m(0, 0) * m(1, 1) - m(1, 0) * m(0, 1), 0,
                 0,           0,           0,           0);
+}
+
+void RenderArea::plotAxes(QPainter &painter)
+{
+    painter.setBrush(QBrush(Qt::GlobalColor::gray,
+                            Qt::BrushStyle::Dense7Pattern));
+    painter.drawEllipse({0, 0}, 55, 55);
+    QPoint Ax = (rotate * QVector3D(50, 0, 0)).toPoint();
+    QPoint Ay = (rotate * QVector3D(0, 50, 0)).toPoint();
+    QPoint Az = (rotate * QVector3D(0, 0, 50)).toPoint();
+    painter.setPen(Qt::GlobalColor::red);
+    painter.drawLine(QPoint(0, 0), Ax);
+    painter.drawText(Ax, "X");
+    painter.setPen(Qt::GlobalColor::green);
+    painter.drawLine(QPoint(0, 0), Ay);
+    painter.drawText(Ay, "Y");
+    painter.setPen(Qt::GlobalColor::blue);
+    painter.drawLine(QPoint(0, 0), Az);
+    painter.drawText(Az, "Z");
+}
+
+void RenderArea::plotFigure(QPainter &painter)
+{
+    for (const auto& p : qAsConst(figure.polygons)) {
+        QVector<QPointF> proj;
+        for (const auto& v : p.vertices)
+            proj.push_back(v->point_world.toPointF());
+        if (isNormalMethodEnabled && p.normal_world.z() >= 0) continue;
+        QBrush faceBrush;
+        if (faceVariant == RANDOM)
+            faceBrush = p.color;
+        else if (faceVariant == NONE)
+            faceBrush = Qt::BrushStyle::NoBrush;
+        else {
+            QVector3D midIntens = p.mid().light;
+            faceBrush = QColor(ceil(0xFF * std::min(1.0f, midIntens[0])),
+                               ceil(0xFF * std::min(1.0f, midIntens[1])),
+                               ceil(0xFF * std::min(1.0f, midIntens[2])));
+        }
+        painter.setBrush(faceBrush);
+        painter.setPen(isDrawingWireframe ? Qt::GlobalColor::white
+                                          : faceBrush.color());
+        painter.drawPolygon(proj);
+        if (isDrawingNormals) {
+            painter.setPen(Qt::GlobalColor::red);
+            painter.setBrush(Qt::GlobalColor::red);
+            painter.drawEllipse(p.mid().point_world.toPoint(), 2, 2);
+            painter.drawLine(p.mid().point_world.toPoint(),
+                            (p.mid().point_world + p.normal_world).toPoint());
+            painter.drawEllipse((p.mid().point_world + p.normal_world).toPoint(), 4, 4);
+        }
+    }
+}
+
+void RenderArea::plotLighter(QPainter &painter)
+{
+    QColor clrAmbient(255 * lighter.ambient[0],
+                      255 * lighter.ambient[1],
+                      255 * lighter.ambient[2]);
+    QColor clrIntensity(255 * lighter.intensity[0],
+                        255 * lighter.intensity[1],
+                        255 * lighter.intensity[2]);
+    painter.setPen(clrAmbient);
+    painter.setBrush(clrAmbient);
+    painter.drawEllipse(lighter.pos_world.toPointF(), 20, 20);
+    painter.setPen(clrIntensity);
+    painter.setBrush(clrIntensity);
+    painter.drawEllipse(lighter.pos_world.toPointF(), 10, 10);
 }
 
 void RenderArea::setFigure(const Polyhedron &newFigure)
@@ -241,6 +306,38 @@ void RenderArea::positIsometric()
     setRotate(ret);
 }
 
+void RenderArea::setLighterDistance(double newD)
+{
+    if (newD <= 0) return;
+    lighter.distance = newD;
+    QWidget::update();
+    emit LighterDistanceChanged(newD);
+}
+
+void RenderArea::setLighterAmbient(QVector3D ia)
+{
+    lighter.ambient = ia;
+    QWidget::update();
+}
+
+void RenderArea::setLighterIntensity(QVector3D il)
+{
+    lighter.intensity = il;
+    QWidget::update();
+}
+
+void RenderArea::setFigureAmbient(QVector3D ka)
+{
+    for (auto& v : figure.vertices) v.ambient = ka;
+    QWidget::update();
+}
+
+void RenderArea::setFigureDiffuse(QVector3D kd)
+{
+    for (auto& v : figure.vertices) v.diffuse = kd;
+    QWidget::update();
+}
+
 void RenderArea::setFaceVariant(FaceVariant newFaceVariant)
 {
     if (faceVariant == newFaceVariant)
@@ -265,6 +362,24 @@ void RenderArea::rotateZ(double degree, bool silent)
 {
     rotate.rotate(degree, {0, 0, 1});
     if (!silent) update();
+}
+
+void RenderArea::lighter_rotateX(double degree, bool silent)
+{
+    lighter.rotate.rotate(degree, {1, 0, 0});
+    if (!silent) QWidget::update();
+}
+
+void RenderArea::lighter_rotateY(double degree, bool silent)
+{
+    lighter.rotate.rotate(degree, {0, 1, 0});
+    if (!silent) QWidget::update();
+}
+
+void RenderArea::lighter_rotateZ(double degree, bool silent)
+{
+    lighter.rotate.rotate(degree, {0, 0, 1});
+    if (!silent) QWidget::update();
 }
 
 void RenderArea::doShift(int x, int y, int z, bool silent)

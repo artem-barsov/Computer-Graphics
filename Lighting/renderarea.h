@@ -6,13 +6,13 @@
 #include <QPainter>
 #include <QMatrix4x4>
 #include <cmath>
-#include "polyhedron.h"
+#include "primitives.h"
 
 class RenderArea : public QWidget
 {
     Q_OBJECT
 public:
-    enum FaceVariant { NONE, RANDOM, DEFAULT };
+    enum FaceVariant { DEFAULT, RANDOM, NONE };
 
     RenderArea(QWidget *parent);
 
@@ -33,6 +33,12 @@ public:
     void rotateY(double degree, bool silent = false);
 
     void rotateZ(double degree, bool silent = false);
+
+    void lighter_rotateX(double degree, bool silent = false);
+
+    void lighter_rotateY(double degree, bool silent = false);
+
+    void lighter_rotateZ(double degree, bool silent = false);
 
     void doShift(int x, int y, int z, bool silent = false);
 
@@ -61,12 +67,24 @@ public slots:
 
     void positIsometric();
 
+    void setLighterDistance(double d);
+
+    void setLighterAmbient(QVector3D ia);
+
+    void setLighterIntensity(QVector3D il);
+
+    void setFigureAmbient(QVector3D ka);
+
+    void setFigureDiffuse(QVector3D kd);
+
 signals:
     void scaleChanged(QMatrix4x4);
 
     void rotateChanged();
 
     void shiftChanged(QMatrix4x4);
+
+    void LighterDistanceChanged(double);
 
     void debug(QMatrix4x4);
 
@@ -77,9 +95,14 @@ protected:
     virtual void mouseReleaseEvent(QMouseEvent *event) override;
     virtual void wheelEvent       (QWheelEvent *event) override;
 
-private: QMatrix4x4 NormalVecTransf(const QMatrix4x4& m);
+private:
+    QMatrix4x4 NormalVecTransf(const QMatrix4x4& m);
+    void plotAxes(QPainter& painter);
+    void plotFigure(QPainter& painter);
+    void plotLighter(QPainter& painter);
 
 private:
+    Lighter lighter;
     Polyhedron figure;
     QMatrix4x4 scale;
     QMatrix4x4 rotate;

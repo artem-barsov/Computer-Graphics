@@ -104,9 +104,15 @@ MainWindow::MainWindow(QWidget *parent)
                               ui->coneRatio_doubleSpinBox->value(),
                               ui->horApr_spinBox->value(),
                               ui->verApr_spinBox->value() ));
+            ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kaG_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kaB_doubleSpinBox->value())});
+            ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kdG_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kdB_doubleSpinBox->value())});
         });
     }
-    // figure selection
+    // figure params
     {
         connect(ui->figure_comboBox, &QComboBox::currentTextChanged,
                 ra, [this](const QString& var) {
@@ -116,7 +122,37 @@ MainWindow::MainWindow(QWidget *parent)
                 ra->setFigure(Polyhedron::GenerateCube());
             else if (var == "Pyramid")
                 ra->setFigure(Polyhedron::GeneratePyramid());
+            ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kaG_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kaB_doubleSpinBox->value())});
+            ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kdG_doubleSpinBox->value())
+                                 , static_cast<float>(ui->kdB_doubleSpinBox->value())});;
         });
+        connect(ui->kaR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kaG_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kaB_doubleSpinBox->value())});});
+        connect(ui->kaG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kaG_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kaB_doubleSpinBox->value())});});
+        connect(ui->kaB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kaG_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kaB_doubleSpinBox->value())});});
+        connect(ui->kdR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kdG_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kdB_doubleSpinBox->value())});});
+        connect(ui->kdG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kdG_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kdB_doubleSpinBox->value())});});
+        connect(ui->kdB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kdG_doubleSpinBox->value())
+                                                   , static_cast<float>(ui->kdB_doubleSpinBox->value())});});
     }
     // painting params
     {
@@ -156,8 +192,54 @@ MainWindow::MainWindow(QWidget *parent)
                                              QString::number(mtx(i, j))));
         });
     }
+    // lighter params
+    {
+        connect(ui->lighter_rotateX_plus_pushButton, &QPushButton::clicked,
+                ra, [this](){ ra->lighter_rotateX(ui->lighter_rotateX_doubleSpinBox->value()); });
+        connect(ui->lighter_rotateX_minus_pushButton, &QPushButton::clicked,
+                ra, [this](){ ra->lighter_rotateX(-ui->lighter_rotateX_doubleSpinBox->value()); });
+        connect(ui->lighter_rotateY_plus_pushButton, &QPushButton::clicked,
+                ra, [this](){ ra->lighter_rotateY(ui->lighter_rotateY_doubleSpinBox->value()); });
+        connect(ui->lighter_rotateY_minus_pushButton, &QPushButton::clicked,
+                ra, [this](){ ra->lighter_rotateY(-ui->lighter_rotateY_doubleSpinBox->value()); });
+        connect(ui->lighter_rotateZ_plus_pushButton, &QPushButton::clicked,
+                ra, [this](){ ra->lighter_rotateZ(ui->lighter_rotateZ_doubleSpinBox->value()); });
+        connect(ui->lighter_rotateZ_minus_pushButton, &QPushButton::clicked,
+                ra, [this](){ ra->lighter_rotateZ(-ui->lighter_rotateZ_doubleSpinBox->value()); });
+        connect(ui->lighterR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, &RenderArea::setLighterDistance);
+        connect(ra, &RenderArea::LighterDistanceChanged,
+                ui->lighterR_doubleSpinBox, &QDoubleSpinBox::setValue);
+        connect(ui->iaR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value())
+                                                    , static_cast<float>(ui->iaG_doubleSpinBox->value())
+                                                    , static_cast<float>(ui->iaB_doubleSpinBox->value())});});
+        connect(ui->iaG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value())
+                                                    , static_cast<float>(ui->iaG_doubleSpinBox->value())
+                                                    , static_cast<float>(ui->iaB_doubleSpinBox->value())});});
+        connect(ui->iaB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value())
+                                                    , static_cast<float>(ui->iaG_doubleSpinBox->value())
+                                                    , static_cast<float>(ui->iaB_doubleSpinBox->value())});});
+        connect(ui->ilR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value())
+                                                      , static_cast<float>(ui->ilG_doubleSpinBox->value())
+                                                      , static_cast<float>(ui->ilB_doubleSpinBox->value())});});
+        connect(ui->ilG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value())
+                                                      , static_cast<float>(ui->ilG_doubleSpinBox->value())
+                                                      , static_cast<float>(ui->ilB_doubleSpinBox->value())});});
+        connect(ui->ilB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value())
+                                                      , static_cast<float>(ui->ilG_doubleSpinBox->value())
+                                                      , static_cast<float>(ui->ilB_doubleSpinBox->value())});});
+    }
 
     emit ui->figure_comboBox->currentTextChanged(ui->figure_comboBox->currentText());
+    emit ui->lighterR_doubleSpinBox->valueChanged(ui->lighterR_doubleSpinBox->value());
+    emit ui->iaR_doubleSpinBox->valueChanged({});
+    emit ui->ilR_doubleSpinBox->valueChanged({});
     emit this->scale_doubleSpinBoxChanged();
     emit this->shift_spinBoxChanged();
 }
