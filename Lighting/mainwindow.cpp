@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "primitives.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -12,6 +13,44 @@ MainWindow::MainWindow(QWidget *parent)
     ra_ratio = (double) ra->width() / ra->height();
     this->setMinimumSize(ui->draw_widget->pos().x() + margin.width() + 120 * ra_ratio,
                          ui->draw_widget->pos().y() + margin.height() + 120);
+    // setup renderarea
+    {
+        ra->setFigure(new ConeMesh(ui->coneR1_doubleSpinBox->value(),
+                                   ui->coneR2_doubleSpinBox->value(),
+                                   ui->coneH_doubleSpinBox->value(),
+                                   ui->coneRatio_doubleSpinBox->value(),
+                                   ui->horApr_spinBox->value(),
+                                   ui->verApr_spinBox->value()));
+        ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value()),
+                               static_cast<float>(ui->kaG_doubleSpinBox->value()),
+                               static_cast<float>(ui->kaB_doubleSpinBox->value())});
+        ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value()),
+                               static_cast<float>(ui->kdG_doubleSpinBox->value()),
+                               static_cast<float>(ui->kdB_doubleSpinBox->value())});
+        ra->setLighterDistance(ui->lighterR_doubleSpinBox->value());
+        ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value()),
+                                static_cast<float>(ui->iaG_doubleSpinBox->value()),
+                                static_cast<float>(ui->iaB_doubleSpinBox->value())});
+        ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value()),
+                                  static_cast<float>(ui->ilG_doubleSpinBox->value()),
+                                  static_cast<float>(ui->ilB_doubleSpinBox->value())});
+        ra->setScale(scalingMtrx(ui->scaleX_doubleSpinBox->value(),
+                                 ui->scaleY_doubleSpinBox->value(),
+                                 ui->scaleZ_doubleSpinBox->value()));
+        ra->setShift(shiftingMtrx(ui->shiftX_spinBox->value(),
+                                  ui->shiftY_spinBox->value(),
+                                  ui->shiftZ_spinBox->value()));
+        ra->setLighterMd(ui->lighterMd_doubleSpinBox->value());
+        ra->setLighterMk(ui->lighterMk_doubleSpinBox->value());
+        ra->setFaceVariant( ui->none_radioButton->isChecked()   ? RenderArea::FaceVariant::NONE
+                          : ui->random_radioButton->isChecked() ? RenderArea::FaceVariant::RANDOM
+                                                                : RenderArea::FaceVariant::DEFAULT);
+        ra->setIsDrawWireframe(ui->wireframe_checkBox->isChecked());
+        ra->setIsPolygonNormals(ui->polygonNormals_checkBox->isChecked());
+        ra->setIsVertexNormals(ui->vertexNormals_checkBox->isChecked());
+        ra->setIsNormalMethodEnabled(ui->normalMethod_checkBox->isChecked());
+        ra->setIsZSortingEnabled(ui->ZSorting_checkBox->isChecked());
+    }
     // scale spinboxes
     {
         connect(ui->scaleX_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
@@ -21,22 +60,14 @@ MainWindow::MainWindow(QWidget *parent)
         connect(ui->scaleZ_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
                 this, &MainWindow::scale_doubleSpinBoxChanged);
         connect(this, &MainWindow::scale_doubleSpinBoxChanged, ra, [this]() {
-            QMatrix4x4 E;
-            E.scale(ui->scaleX_doubleSpinBox->value(),
-                    ui->scaleY_doubleSpinBox->value(),
-                    ui->scaleZ_doubleSpinBox->value());
-            ra->setScale(E);
+            ra->setScale(scalingMtrx(ui->scaleX_doubleSpinBox->value(),
+                                     ui->scaleY_doubleSpinBox->value(),
+                                     ui->scaleZ_doubleSpinBox->value()));
         });
         connect(ra, &RenderArea::scaleChanged, this, [this](QMatrix4x4 sc) {
-            ui->scaleX_doubleSpinBox->blockSignals(true);
-            ui->scaleY_doubleSpinBox->blockSignals(true);
-            ui->scaleZ_doubleSpinBox->blockSignals(true);
             ui->scaleX_doubleSpinBox->setValue(sc(0, 0));
             ui->scaleY_doubleSpinBox->setValue(sc(1, 1));
             ui->scaleZ_doubleSpinBox->setValue(sc(2, 2));
-            ui->scaleY_doubleSpinBox->blockSignals(false);
-            ui->scaleX_doubleSpinBox->blockSignals(false);
-            ui->scaleZ_doubleSpinBox->blockSignals(false);
         });
     }
     // rotate buttons
@@ -63,22 +94,14 @@ MainWindow::MainWindow(QWidget *parent)
         connect(ui->shiftZ_spinBox, QOverload<int>::of(&QSpinBox::valueChanged),
                 this, &MainWindow::shift_spinBoxChanged);
         connect(this, &MainWindow::shift_spinBoxChanged, ra, [this]() {
-            QMatrix4x4 E;
-            E.translate(ui->shiftX_spinBox->value(),
-                        ui->shiftY_spinBox->value(),
-                        ui->shiftZ_spinBox->value());
-            ra->setShift(E);
+            ra->setShift(shiftingMtrx(ui->shiftX_spinBox->value(),
+                                      ui->shiftY_spinBox->value(),
+                                      ui->shiftZ_spinBox->value()));
         });
         connect(ra, &RenderArea::shiftChanged, this, [this](QMatrix4x4 sh) {
-            ui->shiftX_spinBox->blockSignals(true);
-            ui->shiftY_spinBox->blockSignals(true);
-            ui->shiftZ_spinBox->blockSignals(true);
             ui->shiftX_spinBox->setValue(sh(0, 3));
             ui->shiftY_spinBox->setValue(sh(1, 3));
             ui->shiftZ_spinBox->setValue(sh(2, 3));
-            ui->shiftX_spinBox->blockSignals(false);
-            ui->shiftY_spinBox->blockSignals(false);
-            ui->shiftZ_spinBox->blockSignals(false);
         });
     }
     // cone params
@@ -97,13 +120,12 @@ MainWindow::MainWindow(QWidget *parent)
                 this, &MainWindow::coneChanged);
         connect(this, &MainWindow::coneChanged, ra, [this](){
             if (ui->figure_comboBox->currentText() != "Cone") return;
-            ra->setFigure(Polyhedron::GenerateConeMesh(
-                              ui->coneR1_doubleSpinBox->value(),
-                              ui->coneR2_doubleSpinBox->value(),
-                              ui->coneH_doubleSpinBox->value(),
-                              ui->coneRatio_doubleSpinBox->value(),
-                              ui->horApr_spinBox->value(),
-                              ui->verApr_spinBox->value() ));
+            ra->setFigure(new ConeMesh(ui->coneR1_doubleSpinBox->value(),
+                                       ui->coneR2_doubleSpinBox->value(),
+                                       ui->coneH_doubleSpinBox->value(),
+                                       ui->coneRatio_doubleSpinBox->value(),
+                                       ui->horApr_spinBox->value(),
+                                       ui->verApr_spinBox->value()));
             ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
                                  , static_cast<float>(ui->kaG_doubleSpinBox->value())
                                  , static_cast<float>(ui->kaB_doubleSpinBox->value())});
@@ -119,9 +141,9 @@ MainWindow::MainWindow(QWidget *parent)
             if (var == "Cone")
                 emit coneChanged();
             else if (var == "Cube")
-                ra->setFigure(Polyhedron::GenerateCube());
+                ra->setFigure(new Cube());
             else if (var == "Pyramid")
-                ra->setFigure(Polyhedron::GeneratePyramid());
+                ra->setFigure(new Pyramid());
             ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
                                  , static_cast<float>(ui->kaG_doubleSpinBox->value())
                                  , static_cast<float>(ui->kaB_doubleSpinBox->value())});
@@ -167,8 +189,10 @@ MainWindow::MainWindow(QWidget *parent)
                             RenderArea::FaceVariant::DEFAULT); });
         connect(ui->wireframe_checkBox, &QCheckBox::clicked,
                 ra, &RenderArea::setIsDrawWireframe);
-        connect(ui->normals_checkBox, &QCheckBox::clicked,
-                ra, &RenderArea::setIsDrawingNormals);
+        connect(ui->polygonNormals_checkBox, &QCheckBox::clicked,
+                ra, &RenderArea::setIsPolygonNormals);
+        connect(ui->vertexNormals_checkBox, &QCheckBox::clicked,
+                ra, &RenderArea::setIsVertexNormals);
         connect(ui->normalMethod_checkBox, &QCheckBox::clicked,
                 ra, &RenderArea::setIsNormalMethodEnabled);
         connect(ui->ZSorting_checkBox, &QCheckBox::clicked,
@@ -234,14 +258,11 @@ MainWindow::MainWindow(QWidget *parent)
                 ra, [this](){ ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value())
                                                       , static_cast<float>(ui->ilG_doubleSpinBox->value())
                                                       , static_cast<float>(ui->ilB_doubleSpinBox->value())});});
+        connect(ui->lighterMd_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, &RenderArea::setLighterMd);
+        connect(ui->lighterMk_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, &RenderArea::setLighterMk);
     }
-
-    emit ui->figure_comboBox->currentTextChanged(ui->figure_comboBox->currentText());
-    emit ui->lighterR_doubleSpinBox->valueChanged(ui->lighterR_doubleSpinBox->value());
-    emit ui->iaR_doubleSpinBox->valueChanged({});
-    emit ui->ilR_doubleSpinBox->valueChanged({});
-    emit this->scale_doubleSpinBoxChanged();
-    emit this->shift_spinBoxChanged();
 }
 
 void MainWindow::resizeEvent(QResizeEvent*)

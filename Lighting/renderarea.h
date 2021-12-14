@@ -44,15 +44,27 @@ public:
 
     void setFaceVariant(FaceVariant newFaceVariant);
 
-    void setIsDrawingNormals(bool newIsDrawingNormals);
+    void setIsPolygonNormals(bool newIsPolygonNormals);
 
     void setIsNormalMethodEnabled(bool newIsNormalMethodEnabled);
 
     void setIsZSortingEnabled(bool newIsZSortingEnabled);
 
-    void setPoint_viewport(const QMatrix4x4 &newPoint_viewport);
+    void setFigure(Polyhedron *newFigure);
 
-    void setFigure(const Polyhedron &newFigure);
+    void setLighterAmbient(QVector3D ia);
+
+    void setLighterIntensity(QVector3D il);
+
+    void setLighterMd(double md);
+
+    void setLighterMk(double mk);
+
+    void setFigureAmbient(QVector3D ka);
+
+    void setFigureDiffuse(QVector3D kd);
+
+    void setIsVertexNormals(bool newIsVertexNormals);
 
 public slots:
     void setIsDrawWireframe(bool newIsDrawWireframe);
@@ -68,14 +80,6 @@ public slots:
     void positIsometric();
 
     void setLighterDistance(double d);
-
-    void setLighterAmbient(QVector3D ia);
-
-    void setLighterIntensity(QVector3D il);
-
-    void setFigureAmbient(QVector3D ka);
-
-    void setFigureDiffuse(QVector3D kd);
 
 signals:
     void scaleChanged(QMatrix4x4);
@@ -103,11 +107,10 @@ private:
 
 private:
     Lighter lighter;
-    Polyhedron figure;
+    std::unique_ptr<Polyhedron> figure;
     QMatrix4x4 scale;
     QMatrix4x4 rotate;
     QMatrix4x4 shift;
-    QMatrix4x4 projecion;
     QPoint prevPos;
     QMatrix4x4 point_WorldTrans;
     QMatrix4x4 vector_WorldTrans;
@@ -115,7 +118,8 @@ private:
     FaceVariant faceVariant;
     QBrush polygonPainting;
     bool isDrawingWireframe;
-    bool isDrawingNormals;
+    bool isPolygonNormals;
+    bool isVertexNormals;
     bool isNormalMethodEnabled;
     bool isZSortingEnabled;
     static const QMatrix4x4 viewSide;

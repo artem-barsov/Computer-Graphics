@@ -5,13 +5,7 @@ const QMatrix4x4 RenderArea::viewTop   = { 1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,1 };
 const QMatrix4x4 RenderArea::viewFront = { 1,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,1 };
 const QMatrix4x4 RenderArea::viewOrtho = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
 
-RenderArea::RenderArea(QWidget *parent)
-    : QWidget               (parent)
-    , faceVariant           (DEFAULT)
-    , isDrawingWireframe    (false)
-    , isDrawingNormals      (false)
-    , isNormalMethodEnabled (true)
-    , isZSortingEnabled     (false)
+RenderArea::RenderArea(QWidget *parent) : QWidget(parent)
 {
     QWidget::resize(parent->size());
     update();
@@ -39,25 +33,26 @@ void RenderArea::paintEvent(QPaintEvent*)
     painter.drawRect(0, 0, width()-1, height()-1);
 
     // transform
-    if (isZSortingEnabled) {
-        std::sort(figure.polygons.begin(), figure.polygons.end(),
-                  [&](const Polygon& lhs, const Polygon& rhs) {
-            if (!qFuzzyCompare(lhs.mid().point_world.z(), rhs.mid().point_world.z()))
-                return lhs.mid().point_world.z() > rhs.mid().point_world.z();
-            return lhs.normal_world.z() > rhs.normal_world.z();
-        });
-    }
     lighter.pos_world = lighter.rotate.transposed() *
             QVector4D(0, 0, lighter.distance, 1);
-    for (auto& p : figure.polygons)
-        p.normal_world = vector_WorldTrans * p.normal_local;
-    for (auto& v : figure.vertices) {
-        v.point_world = point_WorldTrans * v.point_local;
-        v.normal_world = vector_WorldTrans * v.normal_local;
-        v.light = v.ambient * lighter.ambient;
-        QVector4D L = (lighter.pos_world - v.point_world).normalized();
-        double cosAngl = QVector4D::dotProduct(L, v.normal_world.normalized());
-        if (cosAngl > 0) v.light += v.diffuse * lighter.intensity * cosAngl;
+    for (auto& p : figure->polygons)
+        p->normal_world = vector_WorldTrans * p->normal_local;
+    for (auto& v : figure->vertices) {
+        v->point_world  = point_WorldTrans * v->point_local;
+        v->normal_world = vector_WorldTrans * v->normal_local;
+        v->light        = v->ambient * lighter.ambient;
+        QVector4D L     = lighter.pos_world - v->point_world;
+        double cosAngl  = QVector4D::dotProduct(L.normalized(), v->normal_world.normalized());
+        if (cosAngl > 0) v->light += v->diffuse * lighter.intensity
+                                     * cosAngl * lighter.distanceFunc(L.length());
+    }
+    if (isZSortingEnabled) {
+        std::sort(figure->polygons.begin(), figure->polygons.end(),
+                  [&](const std::shared_ptr<Polygon>& lhs, const std::shared_ptr<Polygon>& rhs) {
+            if (!qFuzzyCompare(lhs->mid().point_world.z(), rhs->mid().point_world.z()))
+                return lhs->mid().point_world.z() > rhs->mid().point_world.z();
+            return lhs->normal_world.z() > rhs->normal_world.z();
+        });
     }
 
     // plot
@@ -150,17 +145,16 @@ void RenderArea::wheelEvent(QWheelEvent *event)
 
 QMatrix4x4 RenderArea::NormalVecTransf(const QMatrix4x4 &m)
 {
-    return QMatrix4x4(
-                m(2, 2) * m(1, 1) - m(1, 2) * m(2, 1),
-                m(1, 2) * m(2, 0) - m(1, 0) * m(2, 2),
-                m(1, 0) * m(2, 1) - m(2, 0) * m(1, 1), 0,
-                m(0, 2) * m(2, 1) - m(2, 2) * m(0, 1),
-                m(2, 2) * m(0, 0) - m(0, 2) * m(2, 0),
-                m(2, 0) * m(0, 1) - m(0, 0) * m(2, 1), 0,
-                m(1, 2) * m(0, 1) - m(0, 2) * m(1, 1),
-                m(1, 0) * m(0, 2) - m(1, 2) * m(0, 0),
-                m(0, 0) * m(1, 1) - m(1, 0) * m(0, 1), 0,
-                0,           0,           0,           0);
+    return { m(2, 2) * m(1, 1) - m(1, 2) * m(2, 1),
+             m(1, 2) * m(2, 0) - m(1, 0) * m(2, 2),
+             m(1, 0) * m(2, 1) - m(2, 0) * m(1, 1), 0,
+             m(0, 2) * m(2, 1) - m(2, 2) * m(0, 1),
+             m(2, 2) * m(0, 0) - m(0, 2) * m(2, 0),
+             m(2, 0) * m(0, 1) - m(0, 0) * m(2, 1), 0,
+             m(1, 2) * m(0, 1) - m(0, 2) * m(1, 1),
+             m(1, 0) * m(0, 2) - m(1, 2) * m(0, 0),
+             m(0, 0) * m(1, 1) - m(1, 0) * m(0, 1), 0,
+             0,           0,           0,           0  };
 }
 
 void RenderArea::plotAxes(QPainter &painter)
@@ -184,33 +178,56 @@ void RenderArea::plotAxes(QPainter &painter)
 
 void RenderArea::plotFigure(QPainter &painter)
 {
-    for (const auto& p : qAsConst(figure.polygons)) {
+    for (const auto& p : qAsConst(figure->polygons)) {
         QVector<QPointF> proj;
-        for (const auto& v : p.vertices)
+        for (const auto& v : qAsConst(p->vertices))
             proj.push_back(v->point_world.toPointF());
-        if (isNormalMethodEnabled && p.normal_world.z() >= 0) continue;
+        if (isNormalMethodEnabled && p->normal_world.z() >= 0) continue;
         QBrush faceBrush;
         if (faceVariant == RANDOM)
-            faceBrush = p.color;
+            faceBrush = p->color;
         else if (faceVariant == NONE)
             faceBrush = Qt::BrushStyle::NoBrush;
-        else {
-            QVector3D midIntens = p.mid().light;
-            faceBrush = QColor(ceil(0xFF * std::min(1.0f, midIntens[0])),
-                               ceil(0xFF * std::min(1.0f, midIntens[1])),
-                               ceil(0xFF * std::min(1.0f, midIntens[2])));
+        else { // if (faceVariant == DEFAULT)
+            QVector3D midIntens = p->mid().light;
+            faceBrush = QColor(0xFF * std::min(1.0f, midIntens[0]),
+                               0xFF * std::min(1.0f, midIntens[1]),
+                               0xFF * std::min(1.0f, midIntens[2]));
         }
         painter.setBrush(faceBrush);
         painter.setPen(isDrawingWireframe ? Qt::GlobalColor::white
                                           : faceBrush.color());
         painter.drawPolygon(proj);
-        if (isDrawingNormals) {
-            painter.setPen(Qt::GlobalColor::red);
-            painter.setBrush(Qt::GlobalColor::red);
-            painter.drawEllipse(p.mid().point_world.toPoint(), 2, 2);
-            painter.drawLine(p.mid().point_world.toPoint(),
-                            (p.mid().point_world + p.normal_world).toPoint());
-            painter.drawEllipse((p.mid().point_world + p.normal_world).toPoint(), 4, 4);
+    }
+    if (isPolygonNormals) {
+        painter.setPen(Qt::GlobalColor::darkRed);
+        painter.setBrush(Qt::GlobalColor::red);
+        for (const auto& p : qAsConst(figure->polygons)) {
+            if ((isNormalMethodEnabled || isZSortingEnabled) && p->normal_world.z() >= 0) continue;
+            painter.drawEllipse(p->mid().point_world.toPoint(), 2, 2);
+            painter.drawLine(p->mid().point_world.toPoint(),
+                            (p->mid().point_world + p->normal_world).toPoint());
+            painter.drawEllipse((p->mid().point_world + p->normal_world).toPoint(), 2, 2);
+        }
+    }
+    if (isVertexNormals) {
+        painter.setPen(Qt::GlobalColor::darkGreen);
+        painter.setBrush(Qt::GlobalColor::green);
+        for (const auto& v : qAsConst(figure->vertices)) {
+            if (isNormalMethodEnabled || isZSortingEnabled) {
+                bool isDrawing = false;
+                for (const auto& p : qAsConst(v->polygons)) {
+                    if (p->normal_world.z() <= 0) {
+                        isDrawing = true;
+                        break;
+                    }
+                }
+                if (!isDrawing) continue;
+            }
+            painter.drawEllipse(v->point_world.toPoint(), 2, 2);
+            painter.drawLine(v->point_world.toPoint(),
+                            (v->point_world + v->normal_world).toPoint());
+            painter.drawEllipse((v->point_world + v->normal_world).toPoint(), 2, 2);
         }
     }
 }
@@ -231,15 +248,15 @@ void RenderArea::plotLighter(QPainter &painter)
     painter.drawEllipse(lighter.pos_world.toPointF(), 10, 10);
 }
 
-void RenderArea::setFigure(const Polyhedron &newFigure)
+void RenderArea::setIsVertexNormals(bool newIsVertexNormals)
 {
-    figure = newFigure;
+    isVertexNormals = newIsVertexNormals;
     update();
 }
 
-void RenderArea::setPoint_viewport(const QMatrix4x4 &newPoint_viewport)
+void RenderArea::setFigure(Polyhedron *newFigure)
 {
-    point_viewport = newPoint_viewport;
+    figure = std::unique_ptr<Polyhedron>(newFigure);
     update();
 }
 
@@ -255,9 +272,9 @@ void RenderArea::setIsNormalMethodEnabled(bool newIsNormalMethodEnabled)
     update();
 }
 
-void RenderArea::setIsDrawingNormals(bool newIsDrawingNormals)
+void RenderArea::setIsPolygonNormals(bool newIsPolygonNormals)
 {
-    isDrawingNormals = newIsDrawingNormals;
+    isPolygonNormals = newIsPolygonNormals;
     update();
 }
 
@@ -326,15 +343,27 @@ void RenderArea::setLighterIntensity(QVector3D il)
     QWidget::update();
 }
 
+void RenderArea::setLighterMd(double md)
+{
+    lighter.md = md;
+    QWidget::update();
+}
+
+void RenderArea::setLighterMk(double mk)
+{
+    lighter.mk = mk;
+    QWidget::update();
+}
+
 void RenderArea::setFigureAmbient(QVector3D ka)
 {
-    for (auto& v : figure.vertices) v.ambient = ka;
+    for (auto& v : figure->vertices) v->ambient = ka;
     QWidget::update();
 }
 
 void RenderArea::setFigureDiffuse(QVector3D kd)
 {
-    for (auto& v : figure.vertices) v.diffuse = kd;
+    for (auto& v : figure->vertices) v->diffuse = kd;
     QWidget::update();
 }
 
