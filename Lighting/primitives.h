@@ -17,8 +17,6 @@ struct Vertex
     QVector4D point_world;
     QVector4D normal_local;
     QVector4D normal_world;
-    QVector3D ambient;
-    QVector3D diffuse;
     QVector3D light;
     Vertex() = default;
     Vertex(double x, double y, double z) : point_local(x, y, z, 1) { }
@@ -48,7 +46,7 @@ struct Polygon
     QVector4D normal_world;
     QColor color;
     Polygon() = default;
-    Polygon(QVector<std::shared_ptr<Vertex> > v) : vertices(v) { }
+    Polygon(const QVector<std::shared_ptr<Vertex> >& vs) : vertices(vs) { }
     Vertex mid() const {
         return std::accumulate(vertices.begin(), vertices.end(), Vertex(),
             [](const Vertex& s, const std::shared_ptr<Vertex>& v){ return s + *v;
@@ -93,6 +91,10 @@ class Polyhedron
 protected:
     const int L = 50; // 2*L -- average local length of figure
 public:
+    QVector3D ambient;
+    QVector3D diffuse;
+    QVector3D specular;
+    double gloss;
     QVector<std::shared_ptr<Vertex> > vertices;
     QVector<std::shared_ptr<Polygon> > polygons;
 };
@@ -124,7 +126,7 @@ public:
             vertices[plane[1]]->polygons.push_back(polygons.back());
             vertices[plane[2]]->polygons.push_back(polygons.back());
             polygons.back()->create_normal();
-            polygons.back()->color = rand();
+            polygons.back()->color = (rand() & 0x00FFFFFF);
         }
         for (auto& v : vertices) v->create_normal();
     }
@@ -151,7 +153,7 @@ public:
             vertices[plane[1]]->polygons.push_back(polygons.back());
             vertices[plane[2]]->polygons.push_back(polygons.back());
             polygons.back()->create_normal();
-            polygons.back()->color = rand();
+            polygons.back()->color = (rand() & 0x00FFFFFF);
         }
         for (auto& v : vertices) v->create_normal();
     }
@@ -160,8 +162,9 @@ public:
 class ConeMesh : public Polyhedron {
 public:
     ConeMesh(double r1, double r2, double h, double base_ratio,
-             int h_appr, int v_appr) : Polyhedron() {
+             int h_appr, int v_appr, int r_appr) : Polyhedron() {
         const double step = 2.0 * acos(-1) / h_appr;
+        // create side vertices: (v_appr + 1) * h_appr
         for (int i = 0; i <= v_appr; i++) {
             double lvl_ratio = 1.0 - (1.0 - base_ratio) * i / v_appr;
             double t = 0;
@@ -171,8 +174,29 @@ public:
                                                             lvl_ratio * r2 * sin(t)));
             }
         }
+        // create bottom vertices: (r_appr - 1) * h_appr + 1
+        for (int i = 0; i < r_appr - 1; i++) {
+            double t = 0;
+            double k = (double)(r_appr-i-1) / r_appr;
+            for (int j = 0; j < h_appr; j++, t += step) {
+                vertices.push_back(std::make_shared<Vertex>(r1 * k * cos(t),
+                                                            h / 2,
+                                                            r2 * k * sin(t)));
+            }
+        }
         vertices.push_back(std::make_shared<Vertex>(0,  h / 2, 0));
+        // create top vertices: (r_appr - 1) * h_appr + 1
+        for (int i = 0; i < r_appr - 1; i++) {
+            double t = 0;
+            double k = base_ratio * (r_appr-i-1) / r_appr;
+            for (int j = 0; j < h_appr; j++, t += step) {
+                vertices.push_back(std::make_shared<Vertex>(r1 * k * cos(t),
+                                                            - h / 2,
+                                                            r2 * k * sin(t)));
+            }
+        }
         vertices.push_back(std::make_shared<Vertex>(0, -h / 2, 0));
+        // create side polygons
         for (int i = 1; i <= v_appr; i++) {
             for (int j = 0; j < h_appr; j++) {
                 polygons.push_back(std::make_shared<Polygon>(QVector
@@ -180,42 +204,151 @@ public:
                                            , vertices[(i-1) * h_appr + j           ]       //  |\.
                                            , vertices[(i-1) * h_appr + (j+1)%h_appr] }));  //  2-3
                 polygons.back()->create_normal();
-                polygons.back()->color = rand();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
                 vertices[   i  * h_appr + j           ]->polygons.push_back(polygons.back());
                 vertices[(i-1) * h_appr + j           ]->polygons.push_back(polygons.back());
                 vertices[(i-1) * h_appr + (j+1)%h_appr]->polygons.push_back(polygons.back());
                 polygons.push_back(std::make_shared<Polygon>(QVector
-                                           { vertices[(i-1) * h_appr + (j+1)%h_appr]       //  3-2
-                                           , vertices[   i  * h_appr + (j+1)%h_appr]       //   \|
-                                           , vertices[   i  * h_appr +  j          ] }));  //    1
+                                           { vertices[   i  * h_appr +  j          ]       //  1-3
+                                           , vertices[(i-1) * h_appr + (j+1)%h_appr]       //   \|
+                                           , vertices[   i  * h_appr + (j+1)%h_appr] }));  //    2
                 polygons.back()->create_normal();
-                polygons.back()->color = rand();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                vertices[   i  * h_appr +  j          ]->polygons.push_back(polygons.back());
                 vertices[(i-1) * h_appr + (j+1)%h_appr]->polygons.push_back(polygons.back());
                 vertices[   i  * h_appr + (j+1)%h_appr]->polygons.push_back(polygons.back());
-                vertices[   i  * h_appr +  j          ]->polygons.push_back(polygons.back());
             }
         }
-        for (int i = 0; i < h_appr; i++) {
-            polygons.push_back(std::make_shared<Polygon>(QVector{ vertices[vertices.size()-2]
-                                                                , vertices[   (i+1)%h_appr  ]
-                                                                , vertices[        i        ] }));
-            polygons.back()->create_normal();
-            polygons.back()->color = rand();
-            vertices[vertices.size()-2]->polygons.push_back(polygons.back());
-            vertices[   (i+1)%h_appr  ]->polygons.push_back(polygons.back());
-            vertices[        i        ]->polygons.push_back(polygons.back());
+        QVector<std::shared_ptr<Vertex> > last(vertices.begin(), vertices.begin() + h_appr);
+        // create bottom edge polygons
+        int offset = (v_appr + 1) * h_appr;
+        if (r_appr > 1)
+            for (int i = 0; i < h_appr; i++) {
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                                   { vertices[           i         ]
+                                                   , vertices[      offset + i     ]
+                                                   , vertices[offset + (i+1)%h_appr]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                vertices[           i         ]->polygons.push_back(polygons.back());
+                vertices[      offset + i     ]->polygons.push_back(polygons.back());
+                vertices[offset + (i+1)%h_appr]->polygons.push_back(polygons.back());
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                                   { vertices[          i          ]
+                                                   , vertices[offset + (i+1)%h_appr]
+                                                   , vertices[   (i + 1) % h_appr  ]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                vertices[          i          ]->polygons.push_back(polygons.back());
+                vertices[offset + (i+1)%h_appr]->polygons.push_back(polygons.back());
+                vertices[   (i + 1) % h_appr  ]->polygons.push_back(polygons.back());
+                last[i] = vertices[offset + i];
+            }
+        // create bottom polygons
+        for (int i = 1; i < r_appr - 1; i++) {
+            for (int j = 0; j < h_appr; j++) {
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                              {     last[                j               ]
+                                              , vertices[      offset + i*h_appr + j     ]
+                                              , vertices[offset + i*h_appr + (j+1)%h_appr]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                    last[                j               ]->polygons.push_back(polygons.back());
+                vertices[      offset + i*h_appr + j     ]->polygons.push_back(polygons.back());
+                vertices[offset + i*h_appr + (j+1)%h_appr]->polygons.push_back(polygons.back());
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                              {     last[                j               ]
+                                              , vertices[offset + i*h_appr + (j+1)%h_appr]
+                                              ,     last[          (j + 1)%h_appr        ]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                    last[                j               ]->polygons.push_back(polygons.back());
+                vertices[offset + i*h_appr + (j+1)%h_appr]->polygons.push_back(polygons.back());
+                    last[          (j + 1)%h_appr        ]->polygons.push_back(polygons.back());
+            }
+            last = { vertices.begin() + offset + i*h_appr,
+                     vertices.begin() + offset + i*h_appr + h_appr };
         }
+        // create bottom center polygons
+        offset = (v_appr+1)*h_appr + h_appr*(r_appr-1);
         for (int i = 0; i < h_appr; i++) {
             polygons.push_back(std::make_shared<Polygon>(QVector
-                                                    { vertices.back()
-                                                    , vertices[h_appr * v_appr +  i          ]
-                                                    , vertices[h_appr * v_appr + (i+1)%h_appr] }));
+                                          { vertices[     offset     ]
+                                          ,     last[(i + 1) % h_appr]
+                                          ,     last[        i       ]}));
             polygons.back()->create_normal();
-            polygons.back()->color = rand();
-            vertices.back()                         ->polygons.push_back(polygons.back());
-            vertices[h_appr * v_appr +  i          ]->polygons.push_back(polygons.back());
-            vertices[h_appr * v_appr + (i+1)%h_appr]->polygons.push_back(polygons.back());
+            polygons.back()->color = (rand() & 0x00FFFFFF);
+            vertices[     offset     ]->polygons.push_back(polygons.back());
+                last[(i + 1) % h_appr]->polygons.push_back(polygons.back());
+                last[        i       ]->polygons.push_back(polygons.back());
         }
+        last = { vertices.begin() + v_appr * h_appr,
+                 vertices.begin() + v_appr * h_appr + h_appr };
+        // create top edge polygons
+        offset = (v_appr + 1) * h_appr + (r_appr - 1) * h_appr + 1;
+        if (r_appr > 1) {
+            for (int i = 0; i < h_appr; i++) {
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                                   { vertices[ offset + i ]
+                                                   ,     last[      i     ]
+                                                   ,     last[(i+1)%h_appr]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                vertices[ offset + i ]->polygons.push_back(polygons.back());
+                    last[      i     ]->polygons.push_back(polygons.back());
+                    last[(i+1)%h_appr]->polygons.push_back(polygons.back());
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                                   { vertices[     offset + i    ]
+                                                   ,     last[  (i + 1) % h_appr ]
+                                                   , vertices[offset+(i+1)%h_appr]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                vertices[     offset + i    ]->polygons.push_back(polygons.back());
+                    last[  (i + 1) % h_appr ]->polygons.push_back(polygons.back());
+                vertices[offset+(i+1)%h_appr]->polygons.push_back(polygons.back());
+            }
+            last = { vertices.begin() + offset, vertices.begin() + offset + h_appr };
+        }
+        // create top polygons
+        offset = (v_appr + 1) * h_appr + (r_appr - 1) * h_appr + 1;
+        for (int i = 1; i < r_appr - 1; i++) {
+            for (int j = 0; j < h_appr; j++) {
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                              { vertices[offset + i*h_appr + j]
+                                              ,     last[          j          ]
+                                              ,     last[   (j + 1) % h_appr  ]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                vertices[offset + i*h_appr + j]->polygons.push_back(polygons.back());
+                    last[          j          ]->polygons.push_back(polygons.back());
+                    last[   (j + 1) % h_appr  ]->polygons.push_back(polygons.back());
+                polygons.push_back(std::make_shared<Polygon>(QVector
+                                              { vertices[      offset + i*h_appr + j     ]
+                                              ,     last[        (j + 1) % h_appr        ]
+                                              , vertices[offset + i*h_appr + (j+1)%h_appr]}));
+                polygons.back()->create_normal();
+                polygons.back()->color = (rand() & 0x00FFFFFF);
+                vertices[      offset + i*h_appr + j     ]->polygons.push_back(polygons.back());
+                    last[        (j + 1) % h_appr        ]->polygons.push_back(polygons.back());
+                vertices[offset + i*h_appr + (j+1)%h_appr]->polygons.push_back(polygons.back());
+            }
+            last = { vertices.begin() + offset + i*h_appr,
+                     vertices.begin() + offset + i*h_appr + h_appr };
+        }
+        // create top center polygons
+        offset = vertices.size() - 1;
+        for (int i = 0; i < h_appr; i++) {
+            polygons.push_back(std::make_shared<Polygon>(QVector
+                                          { vertices[     offset     ]
+                                          ,     last[        i       ]
+                                          ,     last[(i + 1) % h_appr]}));
+            polygons.back()->create_normal();
+            polygons.back()->color = (rand() & 0x00FFFFFF);
+            vertices[     offset     ]->polygons.push_back(polygons.back());
+                last[        i       ]->polygons.push_back(polygons.back());
+                last[(i + 1) % h_appr]->polygons.push_back(polygons.back());
+        }
+
         for (auto& v : vertices) v->create_normal();
     }
 };
@@ -232,6 +365,11 @@ inline QMatrix4x4 shiftingMtrx(double x, double y, double z)
     QMatrix4x4 E;
     E.translate(x, y, z);
     return E;
+}
+
+inline QVector4D reflectVector(QVector4D vec, QVector4D nor)
+{
+    return vec - 2 * nor * QVector4D::dotProduct(vec, nor);
 }
 
 #endif // PRIMITIVES_H

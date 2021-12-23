@@ -13,6 +13,7 @@ class RenderArea : public QWidget
     Q_OBJECT
 public:
     enum FaceVariant { DEFAULT, RANDOM, NONE };
+    enum ShadingVariant { FLAT, GOURAND };
 
     RenderArea(QWidget *parent);
 
@@ -26,7 +27,7 @@ public:
 
     void setShift(const QMatrix4x4 &newShift);
 
-    void update();
+    void recalc();
 
     void rotateX(double degree, bool silent = false);
 
@@ -64,7 +65,13 @@ public:
 
     void setFigureDiffuse(QVector3D kd);
 
+    void setFigureSpecular(QVector3D ks);
+
+    void setFigureGloss(double p);
+
     void setIsVertexNormals(bool newIsVertexNormals);
+
+    void setShadingVariant(ShadingVariant newShadingVariant);
 
 public slots:
     void setIsDrawWireframe(bool newIsDrawWireframe);
@@ -100,10 +107,12 @@ protected:
     virtual void wheelEvent       (QWheelEvent *event) override;
 
 private:
-    QMatrix4x4 NormalVecTransf(const QMatrix4x4& m);
+    QMatrix4x4 NormalVecTransf(const QMatrix4x4& m) const;
     void plotAxes(QPainter& painter);
     void plotFigure(QPainter& painter);
     void plotLighter(QPainter& painter);
+    void plotTriangle(QPainter& painter, QPoint p1, QPoint p2,
+                      QPoint p3, QColor c1, QColor c2, QColor c3);
 
 private:
     Lighter lighter;
@@ -116,6 +125,7 @@ private:
     QMatrix4x4 vector_WorldTrans;
     QMatrix4x4 point_viewport;
     FaceVariant faceVariant;
+    ShadingVariant shadingVariant;
     QBrush polygonPainting;
     bool isDrawingWireframe;
     bool isPolygonNormals;

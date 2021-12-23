@@ -8,10 +8,10 @@ const QMatrix4x4 RenderArea::viewOrtho = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
 RenderArea::RenderArea(QWidget *parent) : QWidget(parent)
 {
     QWidget::resize(parent->size());
-    update();
+    recalc();
 }
 
-void RenderArea::update()
+void RenderArea::recalc()
 {
     point_WorldTrans = shift * rotate.transposed() * scale * point_viewport;
     vector_WorldTrans = NormalVecTransf(point_WorldTrans);
@@ -33,18 +33,24 @@ void RenderArea::paintEvent(QPaintEvent*)
     painter.drawRect(0, 0, width()-1, height()-1);
 
     // transform
-    lighter.pos_world = lighter.rotate.transposed() *
-            QVector4D(0, 0, lighter.distance, 1);
+    lighter.pos_world = lighter.rotate.transposed() * QVector4D(0, 0, lighter.distance, 1);
     for (auto& p : figure->polygons)
         p->normal_world = vector_WorldTrans * p->normal_local;
     for (auto& v : figure->vertices) {
         v->point_world  = point_WorldTrans * v->point_local;
         v->normal_world = vector_WorldTrans * v->normal_local;
-        v->light        = v->ambient * lighter.ambient;
+        v->light = {0, 0, 0};
+        v->light       += lighter.ambient * figure->ambient;
         QVector4D L     = lighter.pos_world - v->point_world;
         double cosAngl  = QVector4D::dotProduct(L.normalized(), v->normal_world.normalized());
-        if (cosAngl > 0) v->light += v->diffuse * lighter.intensity
-                                     * cosAngl * lighter.distanceFunc(L.length());
+        if (cosAngl > 0)
+            v->light   += lighter.intensity * figure->diffuse * cosAngl
+                        * lighter.distanceFunc(L.length());
+        cosAngl = QVector4D::dotProduct(
+                    reflectVector(L, v->normal_world.normalized()).normalized(), {0,0,1,0});
+        if (cosAngl > 0)
+            v->light   += lighter.intensity * figure->specular
+                        * pow(cosAngl, figure->gloss) * lighter.distanceFunc(L.length());
     }
     if (isZSortingEnabled) {
         std::sort(figure->polygons.begin(), figure->polygons.end(),
@@ -143,7 +149,7 @@ void RenderArea::wheelEvent(QWheelEvent *event)
     }
 }
 
-QMatrix4x4 RenderArea::NormalVecTransf(const QMatrix4x4 &m)
+QMatrix4x4 RenderArea::NormalVecTransf(const QMatrix4x4 &m) const
 {
     return { m(2, 2) * m(1, 1) - m(1, 2) * m(2, 1),
              m(1, 2) * m(2, 0) - m(1, 0) * m(2, 2),
@@ -179,31 +185,51 @@ void RenderArea::plotAxes(QPainter &painter)
 void RenderArea::plotFigure(QPainter &painter)
 {
     for (const auto& p : qAsConst(figure->polygons)) {
-        QVector<QPointF> proj;
-        for (const auto& v : qAsConst(p->vertices))
-            proj.push_back(v->point_world.toPointF());
         if (isNormalMethodEnabled && p->normal_world.z() >= 0) continue;
-        QBrush faceBrush;
-        if (faceVariant == RANDOM)
-            faceBrush = p->color;
-        else if (faceVariant == NONE)
-            faceBrush = Qt::BrushStyle::NoBrush;
-        else { // if (faceVariant == DEFAULT)
-            QVector3D midIntens = p->mid().light;
-            faceBrush = QColor(0xFF * std::min(1.0f, midIntens[0]),
-                               0xFF * std::min(1.0f, midIntens[1]),
-                               0xFF * std::min(1.0f, midIntens[2]));
+        QVector<QPoint> proj;
+        for (const auto& v : qAsConst(p->vertices))
+            proj.push_back(v->point_world.toPoint());
+        if (shadingVariant == FLAT) {
+            QBrush faceBrush;
+            if (faceVariant == NONE)
+                faceBrush = Qt::BrushStyle::NoBrush;
+            else {
+                QColor clr = (faceVariant == RANDOM ? p->color : 0x00FFFFFF);
+                QVector3D midIntens = p->mid().light;
+                faceBrush = QColor(clr.red()   * std::min(1.0f, midIntens[0]),
+                                   clr.green() * std::min(1.0f, midIntens[1]),
+                                   clr.blue()  * std::min(1.0f, midIntens[2]));
+            }
+            painter.setBrush(faceBrush);
+            painter.setPen(isDrawingWireframe ? Qt::GlobalColor::white
+                                              : faceBrush.color());
+            painter.drawPolygon(proj);
         }
-        painter.setBrush(faceBrush);
-        painter.setPen(isDrawingWireframe ? Qt::GlobalColor::white
-                                          : faceBrush.color());
-        painter.drawPolygon(proj);
+        else { // if (shadingVariant == GOURAND)
+            QColor clr = (faceVariant == RANDOM ? p->color : 0x00FFFFFF);
+            plotTriangle(painter, proj[0], proj[1], proj[2],
+                             QColor(clr.red()   * std::min(1.0f, p->vertices[0]->light[0]),
+                                    clr.green() * std::min(1.0f, p->vertices[0]->light[1]),
+                                    clr.blue()  * std::min(1.0f, p->vertices[0]->light[2])),
+                             QColor(clr.red()   * std::min(1.0f, p->vertices[1]->light[0]),
+                                    clr.green() * std::min(1.0f, p->vertices[1]->light[1]),
+                                    clr.blue()  * std::min(1.0f, p->vertices[1]->light[2])),
+                             QColor(clr.red()   * std::min(1.0f, p->vertices[2]->light[0]),
+                                    clr.green() * std::min(1.0f, p->vertices[2]->light[1]),
+                                    clr.blue()  * std::min(1.0f, p->vertices[2]->light[2])));
+            if (isDrawingWireframe) {
+                painter.setPen(Qt::GlobalColor::white);
+                painter.setBrush(Qt::BrushStyle::NoBrush);
+                painter.drawPolygon(proj);
+            }
+        }
     }
     if (isPolygonNormals) {
         painter.setPen(Qt::GlobalColor::darkRed);
         painter.setBrush(Qt::GlobalColor::red);
         for (const auto& p : qAsConst(figure->polygons)) {
-            if ((isNormalMethodEnabled || isZSortingEnabled) && p->normal_world.z() >= 0) continue;
+            if ((isNormalMethodEnabled || isZSortingEnabled) && p->normal_world.z() >= 0)
+                continue;
             painter.drawEllipse(p->mid().point_world.toPoint(), 2, 2);
             painter.drawLine(p->mid().point_world.toPoint(),
                             (p->mid().point_world + p->normal_world).toPoint());
@@ -248,40 +274,99 @@ void RenderArea::plotLighter(QPainter &painter)
     painter.drawEllipse(lighter.pos_world.toPointF(), 10, 10);
 }
 
+void RenderArea::plotTriangle(QPainter& painter, QPoint p1, QPoint p2,
+                              QPoint p3, QColor c1, QColor c2, QColor c3)
+{
+    struct PointClr {
+        struct { int x, y; }; QVector3D clr;
+        PointClr(QPoint p, QColor c) : x(p.x()), y(p.y())
+                                     , clr(c.red(), c.green(), c.blue()) { }
+    };
+    std::vector<PointClr> p = { { p1, c1 }, { p2, c2 }, { p3, c3 } };
+    std::sort(p.begin(), p.end(), [](PointClr& lhs, PointClr& rhs) {
+        if (lhs.y != rhs.y)
+            return lhs.y < rhs.y;
+        return lhs.x < rhs.x;
+    });
+    const int y10 = p[1].y - p[0].y;
+    const int y20 = p[2].y - p[0].y;
+    const int y21 = p[2].y - p[1].y;
+    const int x10 = p[1].x - p[0].x;
+    const int x20 = p[2].x - p[0].x;
+    const int x21 = p[2].x - p[1].x;
+    bool toswap = x10 * y20 > y10 * x20;
+    for (int y = p[0].y; y < p[1].y; y++) {
+        int x1 = (y - p[0].y) * x10 / y10 + p[0].x;
+        int x2 = (y - p[0].y) * x20 / y20 + p[0].x;
+        QVector3D clr1 = (p[1].clr * (y - p[0].y) + p[0].clr * (p[1].y - y)) / y10;
+        QVector3D clr2 = (p[2].clr * (y - p[0].y) + p[0].clr * (p[2].y - y)) / y20;
+        if (toswap) {
+            std::swap(x1, x2);
+            std::swap(clr1, clr2);
+        }
+        for (int x = x1; x < x2; x++) {
+            QVector3D clr = (clr1 * (x2 - x) + clr2 * (x - x1)) / (x2 - x1);
+            painter.setPen(QColor(clr[0], clr[1], clr[2]));
+            painter.drawPoint(x, y);
+        }
+    }
+    for (int y = p[1].y; y < p[2].y; y++) {
+        int x1 = (y - p[1].y) * x21 / y21 + p[1].x;
+        int x2 = (y - p[0].y) * x20 / y20 + p[0].x;
+        QVector3D clr1 = (p[2].clr * (y - p[1].y) + p[1].clr * (p[2].y - y)) / y21;
+        QVector3D clr2 = (p[2].clr * (y - p[0].y) + p[0].clr * (p[2].y - y)) / y20;
+        if (toswap) {
+            std::swap(x1, x2);
+            std::swap(clr1, clr2);
+        }
+        for (int x = x1; x < x2; x++) {
+            QVector3D clr = (clr1 * (x2 - x) + clr2 * (x - x1)) / (x2 - x1);
+            painter.setPen(QColor(clr[0], clr[1], clr[2]));
+            painter.drawPoint(x, y);
+        }
+    }
+}
+
+void RenderArea::setShadingVariant(ShadingVariant newShadingVariant)
+{
+    shadingVariant = newShadingVariant;
+    QWidget::update();
+}
+
 void RenderArea::setIsVertexNormals(bool newIsVertexNormals)
 {
     isVertexNormals = newIsVertexNormals;
-    update();
+    QWidget::update();
 }
 
 void RenderArea::setFigure(Polyhedron *newFigure)
 {
     figure = std::unique_ptr<Polyhedron>(newFigure);
-    update();
+    QWidget::update();
 }
 
 void RenderArea::setIsZSortingEnabled(bool newIsZSortingEnabled)
 {
     isZSortingEnabled = newIsZSortingEnabled;
-    update();
+    QWidget::update();
 }
 
 void RenderArea::setIsNormalMethodEnabled(bool newIsNormalMethodEnabled)
 {
     isNormalMethodEnabled = newIsNormalMethodEnabled;
-    update();
+    QWidget::update();
 }
 
 void RenderArea::setIsPolygonNormals(bool newIsPolygonNormals)
 {
     isPolygonNormals = newIsPolygonNormals;
-    update();
+    QWidget::update();
 }
 
 void RenderArea::setIsDrawWireframe(bool newIsDrawWireframe)
 {
     isDrawingWireframe = newIsDrawWireframe;
-    update();
+    QWidget::update();
 }
 
 void RenderArea::setSideView()
@@ -290,14 +375,14 @@ void RenderArea::setSideView()
     QMatrix4x4 E;
     E.rotate(-90, {0, 1, 0});
     setRotate(E);
-    update();
+    recalc();
 }
 
 void RenderArea::setFrontView()
 {
     point_viewport = viewFront;
     setRotate({});
-    update();
+    recalc();
 }
 
 void RenderArea::setTopView()
@@ -306,13 +391,13 @@ void RenderArea::setTopView()
     QMatrix4x4 E;
     E.rotate(-90, {1, 0, 0});
     setRotate(E);
-    update();
+    recalc();
 }
 
 void RenderArea::setOrthoView()
 {
     point_viewport = viewOrtho;
-    update();
+    recalc();
 }
 
 void RenderArea::positIsometric()
@@ -357,40 +442,50 @@ void RenderArea::setLighterMk(double mk)
 
 void RenderArea::setFigureAmbient(QVector3D ka)
 {
-    for (auto& v : figure->vertices) v->ambient = ka;
+    figure->ambient = ka;
     QWidget::update();
 }
 
 void RenderArea::setFigureDiffuse(QVector3D kd)
 {
-    for (auto& v : figure->vertices) v->diffuse = kd;
+    figure->diffuse = kd;
+    QWidget::update();
+}
+
+void RenderArea::setFigureSpecular(QVector3D ks)
+{
+    figure->specular = ks;
+    QWidget::update();
+}
+
+void RenderArea::setFigureGloss(double p)
+{
+    figure->gloss = p;
     QWidget::update();
 }
 
 void RenderArea::setFaceVariant(FaceVariant newFaceVariant)
 {
-    if (faceVariant == newFaceVariant)
-        return;
     faceVariant = newFaceVariant;
-    update();
+    QWidget::update();
 }
 
 void RenderArea::rotateX(double degree, bool silent)
 {
     rotate.rotate(degree, {1, 0, 0});
-    if (!silent) update();
+    if (!silent) recalc();
 }
 
 void RenderArea::rotateY(double degree, bool silent)
 {
     rotate.rotate(degree, {0, 1, 0});
-    if (!silent) update();
+    if (!silent) recalc();
 }
 
 void RenderArea::rotateZ(double degree, bool silent)
 {
     rotate.rotate(degree, {0, 0, 1});
-    if (!silent) update();
+    if (!silent) recalc();
 }
 
 void RenderArea::lighter_rotateX(double degree, bool silent)
@@ -414,7 +509,7 @@ void RenderArea::lighter_rotateZ(double degree, bool silent)
 void RenderArea::doShift(int x, int y, int z, bool silent)
 {
     shift.translate(x, y, z);
-    if (!silent) update();
+    if (!silent) recalc();
     emit shiftChanged(shift);
 }
 
@@ -424,7 +519,7 @@ void RenderArea::setShift(const QMatrix4x4 &newShift)
         return;
     shift = newShift;
     shift.optimize();
-    update();
+    recalc();
     emit shiftChanged(shift);
 }
 
@@ -434,7 +529,7 @@ void RenderArea::setRotate(const QMatrix4x4 &newRotate)
         return;
     rotate = newRotate;
     rotate.optimize();
-    update();
+    recalc();
     emit rotateChanged();
 }
 
@@ -447,7 +542,7 @@ void RenderArea::setScale(const QMatrix4x4 &newScale)
         return;
     scale = newScale;
     scale.optimize();
-    update();
+    recalc();
     emit scaleChanged(scale);
 }
 

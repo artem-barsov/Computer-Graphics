@@ -7,6 +7,13 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    shadingButtonGroup = new QButtonGroup();
+    paintingButtonGroup = new QButtonGroup();
+    shadingButtonGroup->addButton(ui->shadingFlat_radioButton);
+    shadingButtonGroup->addButton(ui->shadingGourand_radioButton);
+    paintingButtonGroup->addButton(ui->default_radioButton);
+    paintingButtonGroup->addButton(ui->none_radioButton);
+    paintingButtonGroup->addButton(ui->random_radioButton);
     margin.setWidth(this->width() - (ui->draw_widget->x() + ui->draw_widget->width()));
     margin.setHeight(this->height() - (ui->draw_widget->y() + ui->draw_widget->height()));
     ra = new RenderArea(ui->draw_widget);
@@ -20,20 +27,25 @@ MainWindow::MainWindow(QWidget *parent)
                                    ui->coneH_doubleSpinBox->value(),
                                    ui->coneRatio_doubleSpinBox->value(),
                                    ui->horApr_spinBox->value(),
-                                   ui->verApr_spinBox->value()));
-        ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value()),
-                               static_cast<float>(ui->kaG_doubleSpinBox->value()),
-                               static_cast<float>(ui->kaB_doubleSpinBox->value())});
-        ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value()),
-                               static_cast<float>(ui->kdG_doubleSpinBox->value()),
-                               static_cast<float>(ui->kdB_doubleSpinBox->value())});
+                                   ui->verApr_spinBox->value(),
+                                   ui->radApr_spinBox->value()));
+        ra->setFigureAmbient(QVector3D(ui->kaR_doubleSpinBox->value(),
+                                       ui->kaG_doubleSpinBox->value(),
+                                       ui->kaB_doubleSpinBox->value()));
+        ra->setFigureDiffuse(QVector3D(ui->kdR_doubleSpinBox->value(),
+                                       ui->kdG_doubleSpinBox->value(),
+                                       ui->kdB_doubleSpinBox->value()));
+        ra->setFigureSpecular(QVector3D(ui->ksR_doubleSpinBox->value(),
+                                        ui->ksG_doubleSpinBox->value(),
+                                        ui->ksB_doubleSpinBox->value()));
+        ra->setFigureGloss(ui->gloss_doubleSpinBox->value());
         ra->setLighterDistance(ui->lighterR_doubleSpinBox->value());
-        ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value()),
-                                static_cast<float>(ui->iaG_doubleSpinBox->value()),
-                                static_cast<float>(ui->iaB_doubleSpinBox->value())});
-        ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value()),
-                                  static_cast<float>(ui->ilG_doubleSpinBox->value()),
-                                  static_cast<float>(ui->ilB_doubleSpinBox->value())});
+        ra->setLighterAmbient(QVector3D(ui->iaR_doubleSpinBox->value(),
+                                        ui->iaG_doubleSpinBox->value(),
+                                        ui->iaB_doubleSpinBox->value()));
+        ra->setLighterIntensity(QVector3D(ui->ilR_doubleSpinBox->value(),
+                                          ui->ilG_doubleSpinBox->value(),
+                                          ui->ilB_doubleSpinBox->value()));
         ra->setScale(scalingMtrx(ui->scaleX_doubleSpinBox->value(),
                                  ui->scaleY_doubleSpinBox->value(),
                                  ui->scaleZ_doubleSpinBox->value()));
@@ -45,6 +57,8 @@ MainWindow::MainWindow(QWidget *parent)
         ra->setFaceVariant( ui->none_radioButton->isChecked()   ? RenderArea::FaceVariant::NONE
                           : ui->random_radioButton->isChecked() ? RenderArea::FaceVariant::RANDOM
                                                                 : RenderArea::FaceVariant::DEFAULT);
+        ra->setShadingVariant(ui->shadingFlat_radioButton->isChecked() ? RenderArea::ShadingVariant::FLAT
+                                                                       : RenderArea::ShadingVariant::GOURAND);
         ra->setIsDrawWireframe(ui->wireframe_checkBox->isChecked());
         ra->setIsPolygonNormals(ui->polygonNormals_checkBox->isChecked());
         ra->setIsVertexNormals(ui->vertexNormals_checkBox->isChecked());
@@ -118,6 +132,8 @@ MainWindow::MainWindow(QWidget *parent)
                 this, &MainWindow::coneChanged);
         connect(ui->verApr_spinBox, QOverload<int>::of(&QSpinBox::valueChanged),
                 this, &MainWindow::coneChanged);
+        connect(ui->radApr_spinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+                this, &MainWindow::coneChanged);
         connect(this, &MainWindow::coneChanged, ra, [this](){
             if (ui->figure_comboBox->currentText() != "Cone") return;
             ra->setFigure(new ConeMesh(ui->coneR1_doubleSpinBox->value(),
@@ -125,13 +141,18 @@ MainWindow::MainWindow(QWidget *parent)
                                        ui->coneH_doubleSpinBox->value(),
                                        ui->coneRatio_doubleSpinBox->value(),
                                        ui->horApr_spinBox->value(),
-                                       ui->verApr_spinBox->value()));
-            ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kaG_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kaB_doubleSpinBox->value())});
-            ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kdG_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kdB_doubleSpinBox->value())});
+                                       ui->verApr_spinBox->value(),
+                                       ui->radApr_spinBox->value()));
+            ra->setFigureAmbient(QVector3D(ui->kaR_doubleSpinBox->value(),
+                                           ui->kaG_doubleSpinBox->value(),
+                                           ui->kaB_doubleSpinBox->value()));
+            ra->setFigureDiffuse(QVector3D(ui->kdR_doubleSpinBox->value(),
+                                           ui->kdG_doubleSpinBox->value(),
+                                           ui->kdB_doubleSpinBox->value()));
+            ra->setFigureSpecular(QVector3D(ui->ksR_doubleSpinBox->value(),
+                                            ui->ksG_doubleSpinBox->value(),
+                                            ui->ksB_doubleSpinBox->value()));
+            ra->setFigureGloss(ui->gloss_doubleSpinBox->value());
         });
     }
     // figure params
@@ -144,37 +165,55 @@ MainWindow::MainWindow(QWidget *parent)
                 ra->setFigure(new Cube());
             else if (var == "Pyramid")
                 ra->setFigure(new Pyramid());
-            ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kaG_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kaB_doubleSpinBox->value())});
-            ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kdG_doubleSpinBox->value())
-                                 , static_cast<float>(ui->kdB_doubleSpinBox->value())});;
+            ra->setFigureAmbient(QVector3D(ui->kaR_doubleSpinBox->value(),
+                                           ui->kaG_doubleSpinBox->value(),
+                                           ui->kaB_doubleSpinBox->value()));
+            ra->setFigureDiffuse(QVector3D(ui->kdR_doubleSpinBox->value(),
+                                           ui->kdG_doubleSpinBox->value(),
+                                           ui->kdB_doubleSpinBox->value()));
+            ra->setFigureSpecular(QVector3D(ui->ksR_doubleSpinBox->value(),
+                                            ui->ksG_doubleSpinBox->value(),
+                                            ui->ksB_doubleSpinBox->value()));
+            ra->setFigureGloss(ui->gloss_doubleSpinBox->value());
         });
         connect(ui->kaR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kaG_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kaB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setFigureAmbient(QVector3D(ui->kaR_doubleSpinBox->value(),
+                                                             ui->kaG_doubleSpinBox->value(),
+                                                             ui->kaB_doubleSpinBox->value()));});
         connect(ui->kaG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kaG_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kaB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setFigureAmbient(QVector3D(ui->kaR_doubleSpinBox->value(),
+                                                             ui->kaG_doubleSpinBox->value(),
+                                                             ui->kaB_doubleSpinBox->value()));});
         connect(ui->kaB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setFigureAmbient({ static_cast<float>(ui->kaR_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kaG_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kaB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setFigureAmbient(QVector3D(ui->kaR_doubleSpinBox->value(),
+                                                             ui->kaG_doubleSpinBox->value(),
+                                                             ui->kaB_doubleSpinBox->value()));});
         connect(ui->kdR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kdG_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kdB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setFigureDiffuse(QVector3D(ui->kdR_doubleSpinBox->value(),
+                                                             ui->kdG_doubleSpinBox->value(),
+                                                             ui->kdB_doubleSpinBox->value()));});
         connect(ui->kdG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kdG_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kdB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setFigureDiffuse(QVector3D(ui->kdR_doubleSpinBox->value(),
+                                                             ui->kdG_doubleSpinBox->value(),
+                                                             ui->kdB_doubleSpinBox->value()));});
         connect(ui->kdB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setFigureDiffuse({ static_cast<float>(ui->kdR_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kdG_doubleSpinBox->value())
-                                                   , static_cast<float>(ui->kdB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setFigureDiffuse(QVector3D(ui->kdR_doubleSpinBox->value(),
+                                                             ui->kdG_doubleSpinBox->value(),
+                                                             ui->kdB_doubleSpinBox->value()));});
+        connect(ui->ksR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureSpecular(QVector3D(ui->ksR_doubleSpinBox->value(),
+                                                              ui->ksG_doubleSpinBox->value(),
+                                                              ui->ksB_doubleSpinBox->value()));});
+        connect(ui->ksG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureSpecular(QVector3D(ui->ksR_doubleSpinBox->value(),
+                                                              ui->ksG_doubleSpinBox->value(),
+                                                              ui->ksB_doubleSpinBox->value()));});
+        connect(ui->ksB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, [this](){ ra->setFigureSpecular(QVector3D(ui->ksR_doubleSpinBox->value(),
+                                                              ui->ksG_doubleSpinBox->value(),
+                                                              ui->ksB_doubleSpinBox->value()));});
+        connect(ui->gloss_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                ra, &RenderArea::setFigureGloss);
     }
     // painting params
     {
@@ -187,6 +226,12 @@ MainWindow::MainWindow(QWidget *parent)
         connect(ui->default_radioButton, &QRadioButton::clicked,
                 ra, [this](){ ra->setFaceVariant(
                             RenderArea::FaceVariant::DEFAULT); });
+        connect(ui->shadingFlat_radioButton, &QRadioButton::clicked,
+                ra, [this](){ ra->setShadingVariant(
+                            RenderArea::ShadingVariant::FLAT); });
+        connect(ui->shadingGourand_radioButton, &QRadioButton::clicked,
+                ra, [this](){ ra->setShadingVariant(
+                            RenderArea::ShadingVariant::GOURAND); });
         connect(ui->wireframe_checkBox, &QCheckBox::clicked,
                 ra, &RenderArea::setIsDrawWireframe);
         connect(ui->polygonNormals_checkBox, &QCheckBox::clicked,
@@ -235,29 +280,29 @@ MainWindow::MainWindow(QWidget *parent)
         connect(ra, &RenderArea::LighterDistanceChanged,
                 ui->lighterR_doubleSpinBox, &QDoubleSpinBox::setValue);
         connect(ui->iaR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value())
-                                                    , static_cast<float>(ui->iaG_doubleSpinBox->value())
-                                                    , static_cast<float>(ui->iaB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setLighterAmbient(QVector3D(ui->iaR_doubleSpinBox->value(),
+                                                              ui->iaG_doubleSpinBox->value(),
+                                                              ui->iaB_doubleSpinBox->value()));});
         connect(ui->iaG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value())
-                                                    , static_cast<float>(ui->iaG_doubleSpinBox->value())
-                                                    , static_cast<float>(ui->iaB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setLighterAmbient(QVector3D(ui->iaR_doubleSpinBox->value(),
+                                                              ui->iaG_doubleSpinBox->value(),
+                                                              ui->iaB_doubleSpinBox->value()));});
         connect(ui->iaB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setLighterAmbient({ static_cast<float>(ui->iaR_doubleSpinBox->value())
-                                                    , static_cast<float>(ui->iaG_doubleSpinBox->value())
-                                                    , static_cast<float>(ui->iaB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setLighterAmbient(QVector3D(ui->iaR_doubleSpinBox->value(),
+                                                              ui->iaG_doubleSpinBox->value(),
+                                                              ui->iaB_doubleSpinBox->value()));});
         connect(ui->ilR_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value())
-                                                      , static_cast<float>(ui->ilG_doubleSpinBox->value())
-                                                      , static_cast<float>(ui->ilB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setLighterIntensity(QVector3D(ui->ilR_doubleSpinBox->value(),
+                                                                ui->ilG_doubleSpinBox->value(),
+                                                                ui->ilB_doubleSpinBox->value()));});
         connect(ui->ilG_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value())
-                                                      , static_cast<float>(ui->ilG_doubleSpinBox->value())
-                                                      , static_cast<float>(ui->ilB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setLighterIntensity(QVector3D(ui->ilR_doubleSpinBox->value(),
+                                                                ui->ilG_doubleSpinBox->value(),
+                                                                ui->ilB_doubleSpinBox->value()));});
         connect(ui->ilB_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                ra, [this](){ ra->setLighterIntensity({ static_cast<float>(ui->ilR_doubleSpinBox->value())
-                                                      , static_cast<float>(ui->ilG_doubleSpinBox->value())
-                                                      , static_cast<float>(ui->ilB_doubleSpinBox->value())});});
+                ra, [this](){ ra->setLighterIntensity(QVector3D(ui->ilR_doubleSpinBox->value(),
+                                                                ui->ilG_doubleSpinBox->value(),
+                                                                ui->ilB_doubleSpinBox->value()));});
         connect(ui->lighterMd_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
                 ra, &RenderArea::setLighterMd);
         connect(ui->lighterMk_doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
@@ -286,4 +331,6 @@ MainWindow::~MainWindow()
 {
     delete ui;
     delete ra;
+    delete shadingButtonGroup;
+    delete paintingButtonGroup;
 }

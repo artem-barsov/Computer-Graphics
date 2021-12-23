@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QButtonGroup>
 #include <QMainWindow>
 #include "renderarea.h"
 
@@ -29,5 +30,7 @@ private:
     RenderArea *ra;
     QSize margin;
     double ra_ratio;
+    QButtonGroup *shadingButtonGroup;
+    QButtonGroup *paintingButtonGroup;
 };
 #endif // MAINWINDOW_H
