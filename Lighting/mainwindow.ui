@@ -1347,7 +1347,7 @@
         <double>0.100000000000000</double>
        </property>
        <property name="value">
-        <double>10.000000000000000</double>
+        <double>50.000000000000000</double>
        </property>
       </widget>
      </item>
@@ -1634,6 +1634,12 @@
      </item>
      <item>
       <widget class="QPushButton" name="isometry_pushButton">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="text">
         <string>Isometry</string>
        </property>

@@ -126,19 +126,11 @@ private:
     QMatrix4x4 point_viewport;
     FaceVariant faceVariant;
     ShadingVariant shadingVariant;
-    QBrush polygonPainting;
     bool isDrawingWireframe;
     bool isPolygonNormals;
     bool isVertexNormals;
     bool isNormalMethodEnabled;
     bool isZSortingEnabled;
-    static const QMatrix4x4 viewSide;
-    static const QMatrix4x4 viewTop;
-    static const QMatrix4x4 viewFront;
-    static const QMatrix4x4 viewOrtho;
-    Q_PROPERTY(QMatrix4x4 scale WRITE setScale NOTIFY scaleChanged)
-    Q_PROPERTY(QMatrix4x4 rotate WRITE setRotate NOTIFY rotateChanged)
-    Q_PROPERTY(QMatrix4x4 shift WRITE setShift NOTIFY shiftChanged)
 };
 
 #endif // RENDERAREA_H

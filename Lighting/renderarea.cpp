@@ -1,10 +1,5 @@
 #include "renderarea.h"
 
-const QMatrix4x4 RenderArea::viewSide  = { 0,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
-const QMatrix4x4 RenderArea::viewTop   = { 1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,1 };
-const QMatrix4x4 RenderArea::viewFront = { 1,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,1 };
-const QMatrix4x4 RenderArea::viewOrtho = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
-
 RenderArea::RenderArea(QWidget *parent) : QWidget(parent)
 {
     QWidget::resize(parent->size());
@@ -371,7 +366,7 @@ void RenderArea::setIsDrawWireframe(bool newIsDrawWireframe)
 
 void RenderArea::setSideView()
 {
-    point_viewport = viewSide;
+    point_viewport = { 0,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
     QMatrix4x4 E;
     E.rotate(-90, {0, 1, 0});
     setRotate(E);
@@ -380,14 +375,14 @@ void RenderArea::setSideView()
 
 void RenderArea::setFrontView()
 {
-    point_viewport = viewFront;
+    point_viewport = { 1,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,1 };
     setRotate({});
     recalc();
 }
 
 void RenderArea::setTopView()
 {
-    point_viewport = viewTop;
+    point_viewport = { 1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,1 };
     QMatrix4x4 E;
     E.rotate(-90, {1, 0, 0});
     setRotate(E);
@@ -396,7 +391,7 @@ void RenderArea::setTopView()
 
 void RenderArea::setOrthoView()
 {
-    point_viewport = viewOrtho;
+    point_viewport = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
     recalc();
 }
 
