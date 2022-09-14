@@ -7,3 +7,4 @@ ui_*
 *.o
 Makefile
 .qmake*
+.*
